@@ -16,7 +16,7 @@ Canonical palette (default; override with --black/--white/--header/--palette):
     33  -> black   (wall: the pointer cannot enter this codel)
     255 -> white   (free passage: the pointer slides through with no
                     command executed)
-    112, 131, 141, 148, 155, 162, 170, 177, 184, 191, 198, 205,
+    112, 131, 134, 148, 155, 162, 170, 177, 184, 191, 198, 205,
     212, 219, 226, 233, 240, 247
         -> the 18 "coloured" steps, in canonical Piet hue-major
            order: light/normal/dark red, yellow, green, cyan, blue,
@@ -35,7 +35,7 @@ import sys
 import argparse
 from math import gcd
 
-DEFAULT_PALETTE = [112, 131, 141, 148, 155, 162, 170, 177, 184, 191,
+DEFAULT_PALETTE = [112, 131, 134, 148, 155, 162, 170, 177, 184, 191,
                     198, 205, 212, 219, 226, 233, 240, 247]
 DEFAULT_BLACK = 33
 DEFAULT_WHITE = 255
