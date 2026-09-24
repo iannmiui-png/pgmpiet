@@ -317,12 +317,19 @@ def write_pgm(path, grid, W, H, last_colour):
 
 
 if __name__ == '__main__':
-    bf = sys.argv[1] if len(sys.argv) > 1 else "++++++++[>++++++++<-]>."
-    T = int(sys.argv[2]) if len(sys.argv) > 2 else 10
+    import os
+    arg = sys.argv[1] if len(sys.argv) > 1 else "++++++++[>++++++++<-]>."
+    if os.path.isfile(arg):
+        with open(arg) as f:
+            bf = f.read()
+        print(f"read program from {arg}")
+    else:
+        bf = arg
+    T = int(sys.argv[2]) if len(sys.argv) > 2 else 300
     c = Compiler(tape_size=T)
     row, loops = c.compile(bf)
     gb = GridBuilder(row, loops)
     W, H, grid = gb.build()
     last_colour = row[-1] if row[-1] != 'WHITE' else 0
     write_pgm('bf_test.pgm', grid, W, H, last_colour)
-    print(f"compiled {bf!r} (T={T}), {len(loops)} loop(s)")
+    print(f"compiled (T={T}), {len(loops)} loop(s) -> bf_test.pgm")
