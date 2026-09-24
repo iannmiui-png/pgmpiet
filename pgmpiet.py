@@ -264,20 +264,21 @@ class Interpreter:
     # ---- stdin helpers ----
     def _ensure_input(self):
         if self.in_buf is None:
-            self.in_buf = sys.stdin.read()
+            self.in_buf = sys.stdin.buffer.read()  # bytes, for byte-exact fidelity
             self.in_pos = 0
 
     def in_number(self):
         self._ensure_input()
         buf = self.in_buf
         i = self.in_pos
-        while i < len(buf) and buf[i] in ' \t\r\n':
+        ws = b' \t\r\n'
+        while i < len(buf) and buf[i] in ws:
             i += 1
         j = i
-        if j < len(buf) and buf[j] in '+-':
+        if j < len(buf) and buf[j] in b'+-':
             j += 1
         start_digits = j
-        while j < len(buf) and buf[j].isdigit():
+        while j < len(buf) and 48 <= buf[j] <= 57:  # b'0'..b'9'
             j += 1
         if j == start_digits:
             return None  # no number available; command is skipped
@@ -288,9 +289,9 @@ class Interpreter:
     def in_char(self):
         self._ensure_input()
         if self.in_pos < len(self.in_buf):
-            ch = self.in_buf[self.in_pos]
+            v = self.in_buf[self.in_pos]  # int 0-255, indexing bytes gives int directly
             self.in_pos += 1
-            return ord(ch)
+            return v
         return None
 
     # ---- command execution ----
@@ -354,12 +355,14 @@ class Interpreter:
                 s.append(v)
         elif cmd == 'out_number':
             if s:
-                sys.stdout.write(str(s.pop()))
+                sys.stdout.buffer.write(str(s.pop()).encode('ascii'))
+                sys.stdout.buffer.flush()
         elif cmd == 'out_char':
             if s:
                 v = s.pop()
                 try:
-                    sys.stdout.write(chr(v))
+                    sys.stdout.buffer.write(bytes([v & 0xFF]))
+                    sys.stdout.buffer.flush()
                 except (ValueError, OverflowError):
                     pass
 
