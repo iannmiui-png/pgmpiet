@@ -11,5 +11,5 @@ bf to pgmpiet compiler
 
 usage:
 ```
-python bf_compiler.py "bf source" [tape_size]
+python pgmpiet_bf.py "bf source" [tape_size]
 ```
