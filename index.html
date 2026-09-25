@@ -1,0 +1,1472 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>pgmpiet paint</title>
+<style>
+  /* Written for old browsers: no CSS grid, no flex `gap`, no
+     aspect-ratio, no CSS variables, no inset/max()/env() -- only plain
+     flexbox, floats, margins and fixed pixel sizes. */
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body {
+    background: #008080;
+    font-family: Tahoma, "Segoe UI", Arial, sans-serif;
+    font-size: 12px;
+    color: #000;
+    padding: 16px;
+    min-height: 100%;
+    -webkit-user-select: none; -moz-user-select: none; -ms-user-select: none; user-select: none;
+    overflow-x: auto;
+  }
+  .clearfix:after { content: ""; display: block; clear: both; }
+
+  .raised { background: #c0c0c0; border: 2px outset #c0c0c0; }
+  .sunken { border: 2px inset #c0c0c0; background: #fff; }
+
+  button {
+    font-family: inherit; font-size: 12px; color: #000;
+    background: #c0c0c0; border: 2px outset #c0c0c0;
+    padding: 3px 8px; cursor: pointer;
+  }
+  button:active, button.pressed { border-style: inset; }
+  button:disabled { color: #808080; cursor: default; }
+  button.icon-btn {
+    width: 34px; height: 30px; padding: 0;
+    text-align: center; line-height: 24px; font-size: 16px;
+  }
+
+  #window {
+    width: 980px; max-width: 100%; margin: 0 auto;
+    background: #c0c0c0;
+    border: 2px outset #c0c0c0;
+    box-shadow: 4px 4px 12px rgba(0,0,0,.4);
+  }
+
+  .titlebar {
+    background-color: #000080;
+    background-image: linear-gradient(to right, #000080, #1084d0);
+    color: #fff; font-weight: bold; font-size: 13px;
+    padding: 3px 4px 3px 6px;
+    display: flex; align-items: center;
+  }
+  .titlebar > * + * { margin-left: 6px; }
+  .titlebar .ttl { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .titlebar .tbtn {
+    width: 18px; height: 16px; font-size: 10px; line-height: 12px;
+    background: #c0c0c0; border: 1px outset #c0c0c0;
+    color: #000; padding: 0; text-align: center;
+  }
+  .titlebar .tbtn + .tbtn { margin-left: 2px; }
+
+  .menubar {
+    display: flex; padding: 2px 4px; background: #c0c0c0;
+    border-bottom: 1px solid #808080; position: relative;
+  }
+  .menu-item + .menu-item { margin-left: 2px; }
+  .menu-item { padding: 3px 8px; cursor: pointer; position: relative; }
+  .menu-item:hover, .menu-item.open { background: #000080; color: #fff; }
+  .menu-dropdown {
+    display: none; position: absolute; top: 100%; left: 0;
+    background: #c0c0c0; border: 2px outset #c0c0c0; color: #000;
+    min-width: 190px; z-index: 50; padding: 2px 0;
+  }
+  .menu-dropdown.open { display: block; }
+  .menu-dropdown .mi { padding: 4px 10px 4px 24px; white-space: nowrap; cursor: pointer; }
+  .menu-dropdown .mi .hint { float: right; margin-left: 16px; color: #808080; font-size: 11px; }
+  .menu-dropdown .mi:hover { background: #000080; color: #fff; }
+  .menu-dropdown .mi:hover .hint { color: #cfe0ff; }
+  .menu-sep { height: 1px; background: #808080; border-bottom: 1px solid #fff; margin: 3px 2px; }
+
+  .toolbar {
+    display: flex; flex-wrap: wrap; align-items: center; padding: 1px 4px;
+    border-bottom: 1px solid #808080;
+  }
+  .toolbar > * { margin: 2px 4px 2px 0; }
+  .toolbar > .sep { width: 2px; height: 28px; border-left: 1px solid #808080; border-right: 1px solid #fff; margin: 2px 7px 2px 3px; }
+  .toolbar label { display: flex; align-items: center; }
+  .toolbar label > * { margin-left: 4px; }
+
+  .main-body { display: flex; }
+
+  .toolbox { width: 74px; padding: 4px 0 4px 4px; border-right: 1px solid #808080; }
+  .toolbox button { float: left; width: 31px; height: 32px; margin: 0 2px 3px 0; padding: 0; font-size: 15px; }
+
+  .canvas-wrap {
+    flex: 1; min-width: 0;
+    background: #808080; padding: 8px;
+    overflow: auto; max-height: 60vh;
+  }
+  #canvas { display: block; image-rendering: -moz-crisp-edges; image-rendering: pixelated; background: #fff; cursor: crosshair; box-shadow: 0 0 0 1px #000; }
+
+  .run-panel { width: 250px; border-left: 1px solid #808080; padding: 6px; font-size: 11px; }
+  .run-panel h4 { margin: 8px 0 3px; font-size: 11px; }
+  .run-panel h4:first-child { margin-top: 0; }
+  .state-grid span { display: block; }
+  .state-grid .k { float: left; clear: left; width: 44px; color: #333; }
+  .state-grid span.v { margin-left: 48px; }
+  textarea, input[type=text], input[type=number] {
+    font-family: Consolas, "Courier New", monospace; font-size: 11px;
+    border: 2px inset #c0c0c0; padding: 3px;
+  }
+  #stdinBox { display: block; height: 44px; resize: vertical; width: 100%; }
+  #outputBox { display: block; height: 130px; resize: vertical; width: 100%; white-space: pre-wrap; word-wrap: break-word; word-break: break-all; }
+  #stackBox { height: 44px; overflow: auto; }
+
+  .palette-bar { display: flex; align-items: center; padding: 6px; border-top: 1px solid #fff; border-bottom: 1px solid #808080; }
+  .palette-bar > * + * { margin-left: 8px; }
+  .swatch-pair { position: relative; width: 38px; height: 34px; flex: none; }
+  .swatch-pair .sw { position: absolute; width: 22px; height: 22px; border: 1px inset #c0c0c0; }
+  .swatch-pair .fg { left: 0; top: 0; z-index: 2; }
+  .swatch-pair .bg { left: 12px; top: 12px; z-index: 1; }
+  .palette-grid { width: 220px; flex: none; }
+  .palette-grid .cell { float: left; width: 20px; height: 20px; margin: 0 2px 2px 0; border: 1px solid #000; cursor: pointer; }
+  .palette-grid .cell:hover { border: 2px solid #000080; }
+
+  .statusbar { display: flex; padding: 3px 8px; border-top: 1px solid #fff; font-size: 11px; }
+  .statusbar > * + * { margin-left: 12px; }
+  .statusbar .cell { border: 1px inset #c0c0c0; padding: 1px 8px; }
+  .statusbar .grow { flex: 1; }
+
+  .modal-overlay {
+    display: none; position: fixed; top: 0; right: 0; bottom: 0; left: 0;
+    background: rgba(0,0,0,.35); z-index: 100;
+    align-items: center; justify-content: center;
+  }
+  .modal-overlay.open { display: flex; }
+  .modal { background: #c0c0c0; border: 2px outset #c0c0c0; width: 300px; box-shadow: 4px 4px 10px rgba(0,0,0,.4); }
+  .modal .titlebar { font-size: 12px; }
+  .modal .body { padding: 14px; }
+  .modal .body > * + * { margin-top: 10px; }
+  .modal .field { display: flex; align-items: center; justify-content: space-between; }
+  .modal .field input { width: 90px; margin-left: 8px; }
+  .modal .btnrow { text-align: right; }
+  .modal .btnrow button { min-width: 70px; }
+  .modal .btnrow button + button { margin-left: 6px; }
+  .modal .note { font-size: 11px; color: #333; line-height: 1.4; }
+
+  .ref-table { border-collapse: collapse; width: 100%; font-size: 11px; }
+  .ref-table th, .ref-table td { border: 1px solid #808080; padding: 3px 6px; text-align: left; }
+  .ref-table th { background: #d4d0c8; }
+  .ref-table td.swatch-cell { width: 28px; }
+  .ref-table .sw-box { width: 20px; height: 14px; border: 1px solid #000; }
+  .ref-table tr:nth-child(even) td { background: #f4f4f0; }
+  .ref-table td.delta-col { text-align: center; font-family: Consolas, "Courier New", monospace; }
+
+  /* ops strip: fixed 30px square cells, floated -- no grid/aspect-ratio */
+  .ops-strip { width: 192px; }
+  .ops-cell {
+    float: left; width: 30px; height: 30px; margin: 0 2px 2px 0;
+    line-height: 28px; text-align: center; overflow: hidden;
+    font-size: 9px; font-family: Consolas, "Courier New", monospace; font-weight: bold;
+    border: 1px solid #000;
+  }
+  .ops-cell.ops-nocmd { color: transparent; }
+  .ops-cell:hover { border: 2px solid #000080; line-height: 26px; }
+  .ops-cell.ops-current { border: 2px solid #ff2020; line-height: 26px; }
+
+  #fileInput { display: none; }
+
+  @media (max-width: 900px) and (min-width: 761px) {
+    .run-panel { width: 210px; }
+    .toolbox { width: 64px; }
+    .toolbox button { width: 27px; }
+  }
+  @media (max-width: 760px) {
+    body { padding: 8px; }
+    #window { width: 100%; }
+    .main-body { flex-direction: column; }
+    .toolbox { order: 2; width: 100%; border-right: none; border-top: 1px solid #808080; border-bottom: 1px solid #808080; }
+    .toolbox button { width: 15%; }
+    .canvas-wrap { order: 1; max-height: 46vh; }
+    .run-panel { order: 3; width: 100%; border-left: none; border-top: 1px solid #808080; }
+  }
+</style>
+</head>
+<body>
+
+<div id="window" class="raised">
+  <div class="titlebar">
+    <span>🎨</span>
+    <span class="ttl" id="titleText">pgmpiet paint - untitled</span>
+    <button class="tbtn">_</button><button class="tbtn">▢</button><button class="tbtn">×</button>
+  </div>
+
+  <div class="menubar" id="menubar">
+    <div class="menu-item" data-menu="file">File
+      <div class="menu-dropdown" id="menu-file">
+        <div class="mi" data-action="new">New</div>
+        <div class="mi" data-action="open">Open&hellip;</div>
+        <div class="menu-sep"></div>
+        <div class="mi" data-action="save-p2">Save as P2 (text)&hellip;</div>
+        <div class="mi" data-action="save-p5">Save as P5 (binary)&hellip;</div>
+      </div>
+    </div>
+    <div class="menu-item" data-menu="edit">Edit
+      <div class="menu-dropdown" id="menu-edit">
+        <div class="mi" data-action="clear-white">Clear to white</div>
+        <div class="mi" data-action="clear-black">Clear to black</div>
+      </div>
+    </div>
+    <div class="menu-item" data-menu="image">Image
+      <div class="menu-dropdown" id="menu-image">
+        <div class="mi" data-action="attrs">Attributes&hellip;</div>
+      </div>
+    </div>
+    <div class="menu-item" data-menu="run">Run
+      <div class="menu-dropdown" id="menu-run">
+        <div class="mi" data-action="run-go">Run <span class="hint">to halt</span></div>
+        <div class="mi" data-action="run-step">Step</div>
+        <div class="mi" data-action="run-reset">Reset</div>
+      </div>
+    </div>
+    <div class="menu-item" data-menu="help">Help
+      <div class="menu-dropdown" id="menu-help">
+        <div class="mi" data-action="reference">Palette &amp; Command Reference</div>
+        <div class="mi" data-action="about">About pgmpiet paint</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="toolbar">
+    <button class="icon-btn" id="btnNew" title="New">🆕</button>
+    <button class="icon-btn" id="btnOpen" title="Open">📂</button>
+    <button class="icon-btn" id="btnSaveP2" title="Save as P2 (text)">💾</button>
+    <div class="sep"></div>
+    <button id="btnRun" title="Run to halt">▶ Run</button>
+    <button id="btnStep" title="Execute one step">⏭ Step</button>
+    <button id="btnReset" title="Reset interpreter">⟲ Reset</button>
+    <div class="sep"></div>
+    <label>Zoom
+      <button class="icon-btn" id="zoomOut" style="width:24px;height:24px;font-size:13px;" title="Zoom out">−</button>
+      <span id="zoomLabel" style="min-width:34px;text-align:center;display:inline-block;">12px</span>
+      <button class="icon-btn" id="zoomIn" style="width:24px;height:24px;font-size:13px;" title="Zoom in">+</button>
+      <button id="zoomFit" title="Shrink to fit the canvas area">Fit</button>
+    </label>
+    <div class="sep"></div>
+    <button id="btnReference" title="Palette &amp; command reference">📖 Reference</button>
+  </div>
+
+  <div class="main-body">
+    <div class="toolbox clearfix" id="toolbox">
+      <button data-tool="pencil" class="pressed" title="Pencil">✏️</button>
+      <button data-tool="fill" title="Fill bucket">🪣</button>
+      <button data-tool="eyedrop" title="Eyedropper">💧</button>
+      <button data-tool="rect" title="Rectangle">▭</button>
+      <button data-tool="line" title="Line">╱</button>
+      <button data-tool="erase" title="Eraser (paints background)">🧹</button>
+    </div>
+
+    <div class="canvas-wrap">
+      <canvas id="canvas" width="384" height="288"></canvas>
+    </div>
+
+    <div class="run-panel">
+      <h4>Interpreter</h4>
+      <div class="state-grid">
+        <span class="k">status</span><span class="v" id="stStatus">not started</span>
+        <span class="k">pos</span><span class="v" id="stPos">-</span>
+        <span class="k">dp</span><span class="v" id="stDp">right</span>
+        <span class="k">cc</span><span class="v" id="stCc">left</span>
+        <span class="k">steps</span><span class="v" id="stSteps">0</span>
+      </div>
+      <h4>From here, next colour does&hellip;</h4>
+      <div class="ops-strip clearfix" id="opsStrip"></div>
+      <div id="cpInfo" style="font-size:10px;color:#333;min-height:12px;"></div>
+      <h4>Stack</h4>
+      <div class="sunken" id="stackBox"></div>
+      <h4>stdin (fed to in_char / in_number)</h4>
+      <textarea id="stdinBox" class="sunken" spellcheck="false"></textarea>
+      <h4>Output</h4>
+      <textarea id="outputBox" class="sunken" readonly spellcheck="false"></textarea>
+    </div>
+  </div>
+
+  <div class="palette-bar">
+    <div class="swatch-pair">
+      <div class="sw bg" id="bgSwatch"></div>
+      <div class="sw fg" id="fgSwatch"></div>
+    </div>
+    <div class="palette-grid clearfix" id="paletteGrid"></div>
+    <div style="flex:1"></div>
+    <div class="note" style="max-width:260px;">left click = foreground &middot; right click = background</div>
+  </div>
+
+  <div class="statusbar">
+    <span class="cell grow" id="statusText">Ready</span>
+    <span class="cell" id="cursorText">-, -</span>
+    <span class="cell" id="dimsText">32 x 24</span>
+  </div>
+</div>
+
+<input type="file" id="fileInput" accept=".pgm">
+
+<div id="opTooltip" style="display:none;position:fixed;z-index:200;background:#ffffe1;border:1px solid #000;padding:3px 6px;font-family:Consolas,'Courier New',monospace;font-size:11px;white-space:nowrap;pointer-events:none;box-shadow:1px 1px 3px rgba(0,0,0,.4);"></div>
+
+<!-- New / Attributes dialog -->
+<div class="modal-overlay" id="sizeModal">
+  <div class="modal">
+    <div class="titlebar"><span class="ttl" id="sizeModalTitle">New Image</span></div>
+    <div class="body">
+      <div class="field"><label for="sizeW">Width (codels)</label><input type="number" id="sizeW" min="1" max="500" value="32"></div>
+      <div class="field"><label for="sizeH">Height (codels)</label><input type="number" id="sizeH" min="1" max="500" value="24"></div>
+      <div class="btnrow">
+        <button id="sizeOk">OK</button>
+        <button id="sizeCancel">Cancel</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Palette & command reference dialog -->
+<div class="modal-overlay" id="refModal">
+  <div class="modal" style="width:640px; max-width:92vw;">
+    <div class="titlebar">
+      <span class="ttl">Palette &amp; Command Reference</span>
+      <button class="tbtn" id="refClose">×</button>
+    </div>
+    <div class="body" style="max-height:80vh; overflow:auto;">
+      <h4 style="margin:0 0 4px;">Palette</h4>
+      <div class="note" style="margin-bottom:6px;">
+        Moving from one colour block to the next executes a command
+        based on <b>&Delta; = (new step &minus; old step) mod 18</b> &mdash;
+        the command depends on the difference between steps, not on
+        either colour alone.
+      </div>
+      <table class="ref-table" id="paletteTable"></table>
+
+      <h4 style="margin:14px 0 4px;">Commands (by &Delta;)</h4>
+      <div class="note" style="margin-bottom:6px;">
+        The command executed when exiting a block of size <i>N</i> and
+        entering the next, for each possible &Delta;.
+      </div>
+      <table class="ref-table" id="commandTable"></table>
+
+      <div class="btnrow" style="margin-top:12px;"><button id="refOk">Close</button></div>
+    </div>
+  </div>
+</div>
+
+<!-- About dialog -->
+<div class="modal-overlay" id="aboutModal">
+  <div class="modal" style="width:360px;">
+    <div class="titlebar"><span class="ttl">About pgmpiet paint</span></div>
+    <div class="body">
+      <div class="note">
+        A paint program for <b>pgmpiet</b>, the grayscale derivative of Piet.
+        Palette: black (33), white (255), and 18 grayscale steps
+        (112&hellip;247) in canonical hue-major order. The Run panel
+        embeds a full interpreter so you can test programs without
+        leaving the editor.
+      </div>
+      <div class="btnrow"><button id="aboutOk">OK</button></div>
+    </div>
+  </div>
+</div>
+
+<!-- Save-format instructions dialog -->
+<div class="modal-overlay" id="saveInfoModal">
+  <div class="modal" style="width:360px;">
+    <div class="titlebar"><span class="ttl">Saved</span></div>
+    <div class="body">
+      <div class="note" id="saveInfoText"></div>
+      <div class="btnrow"><button id="saveInfoOk">OK</button></div>
+    </div>
+  </div>
+</div>
+
+<script>
+"use strict";
+
+/* ============================== palette ============================== */
+const BLACK = 33, WHITE = 255, HEADER = 0;
+const STEPS = [112,131,134,148,155,162,170,177,184,191,198,205,212,219,226,233,240,247];
+const HUE_NAMES = [
+  'light red', 'red', 'dark red',
+  'light yellow', 'yellow', 'dark yellow',
+  'light green', 'green', 'dark green',
+  'light cyan', 'cyan', 'dark cyan',
+  'light blue', 'blue', 'dark blue',
+  'light magenta', 'magenta', 'dark magenta'
+];
+const CANDIDATES = [['black', BLACK], ['white', WHITE], ['header', HEADER]];
+for (let i = 0; i < STEPS.length; i++) CANDIDATES.push([i, STEPS[i]]);
+
+function classify(v) {
+  let best = null, bestd = Infinity;
+  for (const [name, val] of CANDIDATES) {
+    const d = Math.abs(val - v);
+    if (d < bestd) { bestd = d; best = name; }
+  }
+  return best;
+}
+function valueFor(nameOrIndex) {
+  if (nameOrIndex === 'black') return BLACK;
+  if (nameOrIndex === 'white') return WHITE;
+  if (nameOrIndex === 'header') return HEADER;
+  return STEPS[nameOrIndex];
+}
+
+/* ========================= interpreter (ported & validated against
+   the Python reference on hello/four/truthmachine/bottles/quine) ===== */
+const COMMAND_TABLE = [
+  null, 'push', 'pop', 'add', 'subtract', 'multiply', 'divide', 'mod', 'not',
+  'greater', 'pointer', 'switch', 'duplicate', 'roll', 'in_number', 'in_char',
+  'out_number', 'out_char'
+];
+const COMMAND_DESCRIPTIONS = [
+  'nothing happens (never triggered between two distinct blocks)',
+  'pushes the size (codel count) of the block just exited',
+  'pops the top value and discards it',
+  'pops a, b (b on top); pushes a + b',
+  'pops a, b (b on top); pushes a &minus; b',
+  'pops a, b (b on top); pushes a &times; b',
+  'pops a, b (b on top); pushes a &divide; b (integer); no-op if b = 0',
+  'pops a, b (b on top); pushes a mod b; no-op if b = 0',
+  'pops a value; pushes 1 if it was 0, else 0',
+  'pops a, b (b on top); pushes 1 if a &gt; b, else 0',
+  'pops n; rotates DP clockwise by n steps',
+  'pops n; toggles CC (n odd = flip, n even = no change)',
+  'pushes a copy of the top value',
+  'pops depth, then rolls; rotates the top <i>depth</i> values by <i>rolls</i> steps (cyclically, top-ward for positive rolls)',
+  'reads a decimal integer from input and pushes it; no-op if none available',
+  'reads one byte from input and pushes it; no-op at end of input',
+  'pops a value; prints it as a decimal number',
+  'pops a value; prints it as a single byte/character'
+];
+const DP_VECTORS = [[1,0],[0,1],[-1,0],[0,-1]];
+function rotateCw(dp, n) { return ((dp + n) % 4 + 4) % 4; }
+function toggleCc(cc, n) { return (n % 2 === 0) ? cc : 1 - cc; }
+
+function labelBlocks(width, height, grid) {
+  const blockIdAt = Array.from({length: height}, () => new Array(width).fill(null));
+  const blocks = {};
+  let nextId = 0;
+  for (let y0 = 0; y0 < height; y0++) {
+    for (let x0 = 0; x0 < width; x0++) {
+      if (blockIdAt[y0][x0] !== null) continue;
+      const cls = classify(grid[y0][x0]);
+      if (cls === 'black' || cls === 'white' || cls === 'header') continue;
+      const bid = nextId++;
+      const stack = [[x0, y0]];
+      blockIdAt[y0][x0] = bid;
+      const coords = [];
+      while (stack.length) {
+        const [x, y] = stack.pop();
+        coords.push([x, y]);
+        for (const [dx, dy] of [[1,0],[-1,0],[0,1],[0,-1]]) {
+          const nx = x + dx, ny = y + dy;
+          if (nx >= 0 && nx < width && ny >= 0 && ny < height && blockIdAt[ny][nx] === null) {
+            if (classify(grid[ny][nx]) === cls) {
+              blockIdAt[ny][nx] = bid;
+              stack.push([nx, ny]);
+            }
+          }
+        }
+      }
+      blocks[bid] = coords;
+    }
+  }
+  return { blockIdAt, blocks };
+}
+
+class Interpreter {
+  constructor(width, height, grid, headerText, opts) {
+    opts = opts || {};
+    this.w = width; this.h = height; this.grid = grid;
+    this.headerText = headerText || '';
+    const lb = labelBlocks(width, height, grid);
+    this.blockIdAt = lb.blockIdAt; this.blocks = lb.blocks;
+    this.stack = [];
+    this.dp = 0; this.cc = 0;
+    this.inBuf = opts.inBuf || new Uint8Array(0);
+    this.inPos = 0;
+    this.output = [];
+    this.deadOnArrival = false;
+    this.halted = false;
+    this.attempts = 0;
+    this.steps = 0;
+
+    const cls0 = classify(grid[0][0]);
+    if (cls0 === 'black') {
+      this.deadOnArrival = true; this.halted = true;
+      this.pos = [0, 0];
+    } else if (cls0 === 'white' || cls0 === 'header') {
+      const pos = this._slideFree(0, 0);
+      this.pos = pos || [0, 0];
+      this.deadOnArrival = !pos;
+      this.halted = !pos;
+    } else {
+      this.pos = [0, 0];
+    }
+  }
+
+  inBounds(x, y) { return x >= 0 && x < this.w && y >= 0 && y < this.h; }
+  classify(x, y) { return classify(this.grid[y][x]); }
+
+  exitCodel(blockCoords, dp, cc) {
+    const [dpx, dpy] = DP_VECTORS[dp];
+    let ccx, ccy;
+    if (cc === 0) { ccx = dpy; ccy = -dpx; } else { ccx = -dpy; ccy = dpx; }
+    let best = null, bestKey = null;
+    for (const [x, y] of blockCoords) {
+      const key = [x * dpx + y * dpy, x * ccx + y * ccy];
+      if (bestKey === null || key[0] > bestKey[0] || (key[0] === bestKey[0] && key[1] > bestKey[1])) {
+        bestKey = key; best = [x, y];
+      }
+    }
+    return best;
+  }
+
+  inNumber() {
+    const buf = this.inBuf;
+    let i = this.inPos;
+    const isWs = (b) => b === 32 || b === 9 || b === 13 || b === 10;
+    while (i < buf.length && isWs(buf[i])) i++;
+    let j = i;
+    if (j < buf.length && (buf[j] === 43 || buf[j] === 45)) j++;
+    const startDigits = j;
+    while (j < buf.length && buf[j] >= 48 && buf[j] <= 57) j++;
+    if (j === startDigits) return null;
+    let str = '';
+    for (let k = i; k < j; k++) str += String.fromCharCode(buf[k]);
+    this.inPos = j;
+    return parseInt(str, 10);
+  }
+  inChar() {
+    if (this.inPos < this.inBuf.length) {
+      const v = this.inBuf[this.inPos];
+      this.inPos++;
+      return v;
+    }
+    return null;
+  }
+
+  execute(cmd, exitingBlockSize) {
+    const s = this.stack;
+    if (cmd === null) return;
+    switch (cmd) {
+      case 'push': s.push(exitingBlockSize); break;
+      case 'pop': if (s.length) s.pop(); break;
+      case 'add': if (s.length >= 2) { const b = s.pop(), a = s.pop(); s.push(a + b); } break;
+      case 'subtract': if (s.length >= 2) { const b = s.pop(), a = s.pop(); s.push(a - b); } break;
+      case 'multiply': if (s.length >= 2) { const b = s.pop(), a = s.pop(); s.push(a * b); } break;
+      case 'divide': if (s.length >= 2 && s[s.length-1] !== 0) { const b = s.pop(), a = s.pop(); s.push(Math.floor(a / b)); } break;
+      case 'mod': if (s.length >= 2 && s[s.length-1] !== 0) {
+        const b = s.pop(), a = s.pop();
+        let r = a % b; if (r !== 0 && ((r < 0) !== (b < 0))) r += b;
+        s.push(r);
+      } break;
+      case 'not': if (s.length) { const v = s.pop(); s.push(v === 0 ? 1 : 0); } break;
+      case 'greater': if (s.length >= 2) { const b = s.pop(), a = s.pop(); s.push(a > b ? 1 : 0); } break;
+      case 'pointer': if (s.length) { const n = s.pop(); this.dp = rotateCw(this.dp, n); } break;
+      case 'switch': if (s.length) { const n = s.pop(); this.cc = toggleCc(this.cc, n); } break;
+      case 'duplicate': if (s.length) s.push(s[s.length-1]); break;
+      case 'roll': if (s.length >= 2) {
+        const rolls = s[s.length-1], depth = s[s.length-2];
+        if (depth >= 0 && depth <= s.length - 2) {
+          s.pop(); s.pop();
+          if (depth > 0) {
+            let section = s.slice(s.length - depth);
+            let k = ((rolls % depth) + depth) % depth;
+            section = k ? section.slice(-k).concat(section.slice(0, -k)) : section;
+            s.splice(s.length - depth, depth, ...section);
+          }
+        }
+      } break;
+      case 'in_number': { const v = this.inNumber(); if (v !== null) s.push(v); } break;
+      case 'in_char': { const v = this.inChar(); if (v !== null) s.push(v); } break;
+      case 'out_number': if (s.length) {
+        const v = s.pop();
+        for (const ch of String(v)) this.output.push(ch.charCodeAt(0));
+      } break;
+      case 'out_char': if (s.length) {
+        const v = s.pop();
+        this.output.push(((v % 256) + 256) % 256);
+      } break;
+    }
+  }
+
+  /** One iteration of the main loop. Returns true if still running,
+   * false once halted (dead end, natural halt, or white/header trap). */
+  step() {
+    if (this.halted) return false;
+    this.steps++;
+    const [x, y] = this.pos;
+    const bid = this.blockIdAt[y][x];
+    const blockCoords = this.blocks[bid];
+    const oldStep = this.classify(x, y);
+    const [ex, ey] = this.exitCodel(blockCoords, this.dp, this.cc);
+    const [dpx, dpy] = DP_VECTORS[this.dp];
+    const nx = ex + dpx, ny = ey + dpy;
+
+    if (!this.inBounds(nx, ny) || this.classify(nx, ny) === 'black') {
+      this.attempts++;
+      if (this.attempts >= 8) { this.halted = true; return false; }
+      if (this.attempts % 2 === 1) this.cc = toggleCc(this.cc, 1);
+      else this.dp = rotateCw(this.dp, 1);
+      return true;
+    }
+
+    const cls = this.classify(nx, ny);
+    if (cls === 'white' || cls === 'header') {
+      const newPos = this._slideFree(nx, ny);
+      if (!newPos) { this.halted = true; return false; }
+      this.pos = newPos;
+      this.attempts = 0;
+      return true;
+    }
+
+    const newStep = cls;
+    const delta = ((newStep - oldStep) % 18 + 18) % 18;
+    const cmd = COMMAND_TABLE[delta];
+    const beforeStack = this.stack.slice();
+    this.execute(cmd, blockCoords.length);
+    this.lastOp = { oldStep, newStep, delta, cmd, before: beforeStack, after: this.stack.slice(), blockSize: blockCoords.length };
+    this.lastCmd = { oldStep, newStep, delta, cmd };
+    this.pos = [nx, ny];
+    this.attempts = 0;
+    return true;
+  }
+
+  _slideFree(x, y) {
+    let dp = this.dp, cc = this.cc;
+    const visited = new Set();
+    let attempts = 0;
+    if (this.classify(x, y) === 'header') {
+      for (const ch of this.headerText) this.output.push(ch.charCodeAt(0));
+    }
+    while (true) {
+      const key = x + ',' + y + ',' + dp + ',' + cc;
+      if (visited.has(key)) return null;
+      visited.add(key);
+      const [dpx, dpy] = DP_VECTORS[dp];
+      const nx = x + dpx, ny = y + dpy;
+      if (!this.inBounds(nx, ny) || this.classify(nx, ny) === 'black') {
+        attempts++;
+        if (attempts >= 8) return null;
+        if (attempts % 2 === 1) cc = toggleCc(cc, 1);
+        else dp = rotateCw(dp, 1);
+        continue;
+      }
+      const cls = this.classify(nx, ny);
+      if (cls === 'white' || cls === 'header') {
+        if (cls === 'header') {
+          for (const ch of this.headerText) this.output.push(ch.charCodeAt(0));
+        }
+        x = nx; y = ny;
+        continue;
+      }
+      this.dp = dp; this.cc = cc;
+      return [nx, ny];
+    }
+  }
+}
+
+function describeOp(op) {
+  if (!op) return '';
+  const { cmd, before, after, blockSize } = op;
+  const fmt = (arr) => '[' + arr.join(', ') + ']';
+  if (cmd === null) return 'no-op (Δ=0)';
+  switch (cmd) {
+    case 'push': return 'push ' + blockSize + '  (block size)';
+    case 'pop': return before.length ? 'pop  (removed ' + before[before.length-1] + ')' : 'pop  (stack empty, no-op)';
+    case 'add': return before.length >= 2 ? 'add  ' + before[before.length-2] + ' + ' + before[before.length-1] + ' \u2192 ' + after[after.length-1] : 'add  (needs 2, no-op)';
+    case 'subtract': return before.length >= 2 ? 'subtract  ' + before[before.length-2] + ' - ' + before[before.length-1] + ' \u2192 ' + after[after.length-1] : 'subtract  (needs 2, no-op)';
+    case 'multiply': return before.length >= 2 ? 'multiply  ' + before[before.length-2] + ' \u00d7 ' + before[before.length-1] + ' \u2192 ' + after[after.length-1] : 'multiply  (needs 2, no-op)';
+    case 'divide': return before.length >= 2 && before[before.length-1] !== 0 ? 'divide  ' + before[before.length-2] + ' \u00f7 ' + before[before.length-1] + ' \u2192 ' + after[after.length-1] : 'divide  (needs 2 / div-by-0, no-op)';
+    case 'mod': return before.length >= 2 && before[before.length-1] !== 0 ? 'mod  ' + before[before.length-2] + ' mod ' + before[before.length-1] + ' \u2192 ' + after[after.length-1] : 'mod  (needs 2 / div-by-0, no-op)';
+    case 'not': return before.length ? 'not  ' + before[before.length-1] + ' \u2192 ' + after[after.length-1] : 'not  (stack empty, no-op)';
+    case 'greater': return before.length >= 2 ? 'greater  ' + before[before.length-2] + ' > ' + before[before.length-1] + ' \u2192 ' + after[after.length-1] : 'greater  (needs 2, no-op)';
+    case 'pointer': return before.length ? 'pointer  rotate DP by ' + before[before.length-1] : 'pointer  (stack empty, no-op)';
+    case 'switch': return before.length ? 'switch  toggle CC by ' + before[before.length-1] : 'switch  (stack empty, no-op)';
+    case 'duplicate': return before.length ? 'duplicate  ' + before[before.length-1] + ' \u2192 ' + fmt(after) : 'duplicate  (stack empty, no-op)';
+    case 'roll': return before.length >= 2 ? 'roll  depth=' + before[before.length-2] + ' rolls=' + before[before.length-1] : 'roll  (needs 2, no-op)';
+    case 'in_number': return after.length > before.length ? 'in_number  read ' + after[after.length-1] : 'in_number  (no number available, no-op)';
+    case 'in_char': return after.length > before.length ? 'in_char  read ' + after[after.length-1] + " ('" + String.fromCharCode(after[after.length-1]) + "')" : 'in_char  (EOF, no-op)';
+    case 'out_number': return before.length ? 'out_number  printed ' + before[before.length-1] : 'out_number  (stack empty, no-op)';
+    case 'out_char': return before.length ? 'out_char  printed ' + before[before.length-1] + " ('" + String.fromCharCode(((before[before.length-1] % 256) + 256) % 256) + "')" : 'out_char  (stack empty, no-op)';
+    default: return cmd;
+  }
+}
+
+/* UTF-8 encode without TextEncoder (missing in old Edge/IE). */
+function utf8Bytes(str) {
+  const bin = unescape(encodeURIComponent(str));
+  const out = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+  return out;
+}
+
+/* ============================== editor state ========================= */
+let W = 32, H = 24;
+let pixels = new Uint8Array(W * H).fill(WHITE);
+let zoom = 12;
+let fgColor = STEPS[0], bgColor = WHITE;
+let currentTool = 'pencil';
+let drawing = false, drawButton = 0;
+let rectStart = null;
+let savedSnapshotForPreview = null;
+let editPtr = null;        // design-mode cp: {x, y, dp} of the last codel placed
+let lastDragPos = null;
+
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+
+function idx(x, y) { return y * W + x; }
+function getPixel(x, y) { return pixels[idx(x, y)]; }
+function setPixel(x, y, v) {
+  if (x < 0 || x >= W || y < 0 || y >= H) return;
+  pixels[idx(x, y)] = v;
+}
+
+function render() {
+  canvas.width = W * zoom;
+  canvas.height = H * zoom;
+  for (let y = 0; y < H; y++) {
+    for (let x = 0; x < W; x++) {
+      ctx.fillStyle = grayCss(pixels[idx(x, y)]);
+      ctx.fillRect(x * zoom, y * zoom, zoom, zoom);
+    }
+  }
+  if (zoom >= 8) {
+    ctx.strokeStyle = 'rgba(0,0,0,0.15)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    for (let x = 0; x <= W; x++) { ctx.moveTo(x*zoom+0.5, 0); ctx.lineTo(x*zoom+0.5, H*zoom); }
+    for (let y = 0; y <= H; y++) { ctx.moveTo(0, y*zoom+0.5); ctx.lineTo(W*zoom, y*zoom+0.5); }
+    ctx.stroke();
+  }
+  const ep = activePointer();
+  if (ep) drawPointer(ep.x, ep.y, ep.dp, ep.exec ? '#ff2020' : '#1040ff');
+  document.getElementById('dimsText').textContent = W + ' x ' + H;
+}
+function grayCss(v) { v = Math.max(0, Math.min(255, v)); return 'rgb(' + v + ',' + v + ',' + v + ')'; }
+
+/* The cp shown on canvas: the execution pointer once a run has taken a
+ * step, otherwise the design cp (last codel placed), otherwise the
+ * interpreter's start position. */
+function activePointer() {
+  if (interp && (interp.steps > 0 || isRunning)) return { x: interp.pos[0], y: interp.pos[1], dp: interp.dp, exec: true };
+  if (editPtr) return { x: editPtr.x, y: editPtr.y, dp: editPtr.dp, exec: false };
+  if (interp) return { x: interp.pos[0], y: interp.pos[1], dp: interp.dp, exec: true };
+  return null;
+}
+function drawPointer(x, y, dp, color) {
+  ctx.save();
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 2;
+  ctx.strokeRect(x * zoom + 1, y * zoom + 1, zoom - 2, zoom - 2);
+  const cx = x * zoom + zoom / 2, cy = y * zoom + zoom / 2;
+  const [dx, dy] = DP_VECTORS[dp];
+  const [px, py] = [-dy, dx];
+  const len = Math.max(4, zoom * 0.32);
+  const backLen = len * 0.7;
+  const baseW = Math.max(3, zoom * 0.22);
+  ctx.fillStyle = color;
+  ctx.beginPath();
+  ctx.moveTo(cx + dx * len, cy + dy * len);
+  ctx.lineTo(cx - dx * backLen + px * baseW, cy - dy * backLen + py * baseW);
+  ctx.lineTo(cx - dx * backLen - px * baseW, cy - dy * backLen - py * baseW);
+  ctx.closePath();
+  ctx.fill();
+  ctx.restore();
+}
+
+/* Move the design cp onto (x, y); direction = the way you moved to get
+ * there (dominant axis). A click on the same codel keeps the direction. */
+function moveEditPtr(x, y, fromX, fromY) {
+  if (x < 0 || x >= W || y < 0 || y >= H) return;
+  // only coloured codels are "placed" commands; white/black/header don't move the cp
+  if (typeof classify(getPixel(x, y)) !== 'number') return;
+  let dp = editPtr ? editPtr.dp : 0;
+  const ox = (fromX !== undefined) ? fromX : (editPtr ? editPtr.x : x);
+  const oy = (fromY !== undefined) ? fromY : (editPtr ? editPtr.y : y);
+  const ddx = x - ox, ddy = y - oy;
+  if (ddx !== 0 || ddy !== 0) {
+    if (Math.abs(ddx) >= Math.abs(ddy)) dp = ddx > 0 ? 0 : 2;
+    else dp = ddy > 0 ? 1 : 3;
+  }
+  editPtr = { x, y, dp };
+}
+
+/* Any edit makes a previous run stale (it holds a copy of the old grid). */
+function invalidateRun() {
+  if (isRunning) { isRunning = false; if (runningHandle) cancelAnimationFrame(runningHandle);
+    document.getElementById('btnRun').textContent = '\u25b6 Run'; document.getElementById('btnStep').disabled = false; }
+  if (interp && interp.steps > 0) {
+    interp = null;
+    hideOpTooltip();
+    document.getElementById('stStatus').textContent = 'edited \u2014 not started';
+    document.getElementById('stPos').textContent = '-';
+    document.getElementById('stSteps').textContent = '0';
+    document.getElementById('stackBox').textContent = '';
+  } else {
+    interp = null;
+  }
+}
+
+function newImage(w, h, fill) {
+  editPtr = null;
+  W = w; H = h;
+  pixels = new Uint8Array(W * H).fill(fill === undefined ? WHITE : fill);
+  resetInterpreter();
+  fitZoom();
+  render();
+}
+
+function resizeImage(newW, newH) {
+  editPtr = null;
+  const np = new Uint8Array(newW * newH).fill(WHITE);
+  for (let y = 0; y < Math.min(H, newH); y++) {
+    for (let x = 0; x < Math.min(W, newW); x++) {
+      np[y * newW + x] = pixels[y * W + x];
+    }
+  }
+  W = newW; H = newH; pixels = np;
+  resetInterpreter();
+  fitZoom();
+  render();
+}
+
+/* ------------------------------- zoom -------------------------------- */
+function computeFitZoom() {
+  const wrap = document.querySelector('.canvas-wrap');
+  const availW = Math.max(20, wrap.clientWidth - 20);
+  const availH = Math.max(20, wrap.clientHeight - 20);
+  let z = Math.floor(Math.min(availW / W, availH / H));
+  return Math.max(1, Math.min(48, z));
+}
+function fitZoom() {
+  zoom = computeFitZoom();
+  updateZoomLabel();
+}
+function setZoom(z) {
+  zoom = Math.max(1, Math.min(96, z));
+  updateZoomLabel();
+  render();
+}
+function updateZoomLabel() {
+  document.getElementById('zoomLabel').textContent = zoom + 'px';
+}
+window.addEventListener('resize', () => { fitZoom(); render(); });
+document.querySelector('.canvas-wrap').addEventListener('scroll', () => { if (interp) updateOpTooltip(); });
+
+/* ================================ tools =============================== */
+function canvasCoords(evt) {
+  const rect = canvas.getBoundingClientRect();
+  const cx = (evt.touches ? evt.touches[0].clientX : evt.clientX) - rect.left;
+  const cy = (evt.touches ? evt.touches[0].clientY : evt.clientY) - rect.top;
+  const x = Math.floor(cx / zoom), y = Math.floor(cy / zoom);
+  return [x, y];
+}
+
+function floodFill(x0, y0, color) {
+  const target = getPixel(x0, y0);
+  if (target === color) return;
+  const stack = [[x0, y0]];
+  const seen = new Set();
+  while (stack.length) {
+    const [x, y] = stack.pop();
+    if (x < 0 || x >= W || y < 0 || y >= H) continue;
+    const key = x + ',' + y;
+    if (seen.has(key)) continue;
+    if (getPixel(x, y) !== target) continue;
+    seen.add(key);
+    setPixel(x, y, color);
+    stack.push([x+1,y],[x-1,y],[x,y+1],[x,y-1]);
+  }
+}
+
+function drawLineCodels(x0, y0, x1, y1, color) {
+  let dx = Math.abs(x1-x0), dy = -Math.abs(y1-y0);
+  let sx = x0 < x1 ? 1 : -1, sy = y0 < y1 ? 1 : -1;
+  let err = dx + dy;
+  while (true) {
+    setPixel(x0, y0, color);
+    if (x0 === x1 && y0 === y1) break;
+    const e2 = 2 * err;
+    if (e2 >= dy) { err += dy; x0 += sx; }
+    if (e2 <= dx) { err += dx; y0 += sy; }
+  }
+}
+
+function applyToolDown(x, y, button) {
+  const color = button === 2 ? bgColor : fgColor;
+  drawButton = button;
+  if (currentTool === 'pencil') { invalidateRun(); setPixel(x, y, color); moveEditPtr(x, y); afterEdit(); }
+  else if (currentTool === 'erase') { invalidateRun(); setPixel(x, y, bgColor); afterEdit(); }
+  else if (currentTool === 'fill') { invalidateRun(); floodFill(x, y, color); moveEditPtr(x, y); afterEdit(); }
+  else if (currentTool === 'eyedrop') {
+    const v = getPixel(x, y);
+    if (button === 2) { bgColor = v; } else { fgColor = v; }
+    updateSwatches();
+  } else if (currentTool === 'rect' || currentTool === 'line') {
+    invalidateRun();
+    rectStart = [x, y];
+    lastDragPos = [x, y];
+    savedSnapshotForPreview = pixels.slice();
+  }
+}
+function applyToolMove(x, y, button) {
+  const color = drawButton === 2 ? bgColor : fgColor;
+  if (currentTool === 'pencil') {
+    if (editPtr && editPtr.x === x && editPtr.y === y) return;
+    setPixel(x, y, color); moveEditPtr(x, y); afterEdit();
+  }
+  else if (currentTool === 'erase') { setPixel(x, y, bgColor); afterEdit(); }
+  else if ((currentTool === 'rect' || currentTool === 'line') && rectStart) {
+    lastDragPos = [x, y];
+    pixels = savedSnapshotForPreview.slice();
+    if (currentTool === 'rect') {
+      const [x0,y0] = rectStart;
+      const xlo = Math.min(x0,x), xhi = Math.max(x0,x);
+      const ylo = Math.min(y0,y), yhi = Math.max(y0,y);
+      for (let yy = ylo; yy <= yhi; yy++)
+        for (let xx = xlo; xx <= xhi; xx++) setPixel(xx, yy, color);
+    } else {
+      drawLineCodels(rectStart[0], rectStart[1], x, y, color);
+    }
+    render();
+  }
+}
+function applyToolUp() {
+  if ((currentTool === 'rect' || currentTool === 'line') && rectStart) {
+    const [ex, ey] = lastDragPos || rectStart;
+    moveEditPtr(ex, ey, rectStart[0], rectStart[1]);
+    savedSnapshotForPreview = null;
+    rectStart = null;
+    lastDragPos = null;
+    afterEdit();
+  }
+  drawing = false;
+}
+
+function afterEdit() { render(); buildOpsStrip(); }
+
+canvas.addEventListener('contextmenu', (e) => e.preventDefault());
+canvas.addEventListener('mousedown', (e) => {
+  drawing = true;
+  const [x, y] = canvasCoords(e);
+  applyToolDown(x, y, e.button);
+});
+canvas.addEventListener('mousemove', (e) => {
+  const [x, y] = canvasCoords(e);
+  if (x >= 0 && x < W && y >= 0 && y < H) {
+    document.getElementById('cursorText').textContent = x + ', ' + y;
+  }
+  if (drawing) applyToolMove(x, y, drawButton);
+});
+window.addEventListener('mouseup', applyToolUp);
+canvas.addEventListener('touchstart', (e) => { e.preventDefault(); drawing = true; const [x,y]=canvasCoords(e); applyToolDown(x,y,0); }, {passive:false});
+canvas.addEventListener('touchmove', (e) => { e.preventDefault(); const [x,y]=canvasCoords(e); if (drawing) applyToolMove(x,y,drawButton); }, {passive:false});
+canvas.addEventListener('touchend', applyToolUp);
+
+document.querySelectorAll('#toolbox button').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('#toolbox button').forEach(b => b.classList.remove('pressed'));
+    btn.classList.add('pressed');
+    currentTool = btn.dataset.tool;
+  });
+});
+
+/* ============================== palette UI ============================ */
+const PALETTE_ORDER = ['black', 'white', ...STEPS.map((_, i) => i)];
+function paletteCss(nameOrIndex) { return grayCss(valueFor(nameOrIndex)); }
+
+function buildPaletteGrid() {
+  const grid = document.getElementById('paletteGrid');
+  grid.innerHTML = '';
+  PALETTE_ORDER.forEach((entry) => {
+    const cell = document.createElement('div');
+    cell.className = 'cell';
+    cell.style.background = paletteCss(entry);
+    cell.title = entry === 'black' ? 'black (33)' : entry === 'white' ? 'white (255)' : 'step ' + entry + ' (' + STEPS[entry] + ')';
+    cell.addEventListener('click', () => { fgColor = valueFor(entry); updateSwatches(); });
+    cell.addEventListener('contextmenu', (e) => { e.preventDefault(); bgColor = valueFor(entry); updateSwatches(); });
+    grid.appendChild(cell);
+  });
+}
+function updateSwatches() {
+  document.getElementById('fgSwatch').style.background = grayCss(fgColor);
+  document.getElementById('bgSwatch').style.background = grayCss(bgColor);
+  buildOpsStrip();
+}
+
+/* ========================== always-visible ops strip ==================== */
+const CMD_ABBR = ['\u00b7','psh','pop','add','sub','mul','div','mod','not','gtr','ptr','swi','dup','rol','inN','inC','otN','otC'];
+/* Which colour the strip is relative to, and why. Never returns
+ * "nothing": falls back cp codel -> foreground -> step 0. */
+function stripReference() {
+  const ap = activePointer();
+  if (ap) {
+    const cls = classify(getPixel(ap.x, ap.y));
+    if (typeof cls === 'number') return { step: cls, source: 'cp', ap: ap };
+  }
+  const fg = classify(fgColor);
+  if (typeof fg === 'number') return { step: fg, source: ap ? 'fg-cp-blank' : 'fg', ap: ap };
+  return { step: 0, source: 'default', ap: ap };
+}
+function currentReferenceStep() { return stripReference().step; }
+function blockSizeAt(x0, y0) {
+  const cls = classify(getPixel(x0, y0));
+  if (typeof cls !== 'number') return 0;
+  const seen = new Uint8Array(W * H);
+  const stack = [[x0, y0]]; seen[idx(x0, y0)] = 1;
+  let n = 0;
+  while (stack.length) {
+    const [x, y] = stack.pop(); n++;
+    for (const [dx, dy] of [[1,0],[-1,0],[0,1],[0,-1]]) {
+      const nx = x + dx, ny = y + dy;
+      if (nx >= 0 && nx < W && ny >= 0 && ny < H && !seen[idx(nx, ny)] && classify(getPixel(nx, ny)) === cls) {
+        seen[idx(nx, ny)] = 1; stack.push([nx, ny]);
+      }
+    }
+  }
+  return n;
+}
+function textColorFor(gray) { return gray > 150 ? '#000' : '#fff'; }
+function buildOpsStrip() {
+  const ref = stripReference();
+  const baseStep = ref.step;
+  const strip = document.getElementById('opsStrip');
+  const info = document.getElementById('cpInfo');
+  strip.innerHTML = '';
+  const arrows = ['\u2192','\u2193','\u2190','\u2191'];
+  if (ref.source === 'cp') {
+    const n = blockSizeAt(ref.ap.x, ref.ap.y);
+    info.textContent = 'cp at ' + ref.ap.x + ',' + ref.ap.y + ' ' + arrows[ref.ap.dp] +
+                       ' \u00b7 block ' + n + ' (psh pushes ' + n + ')';
+  } else if (ref.source === 'fg-cp-blank') {
+    info.textContent = 'cp is on white/black \u2014 showing relative to foreground';
+  } else if (ref.source === 'fg') {
+    info.textContent = 'no cp yet \u2014 relative to foreground colour';
+  } else {
+    info.textContent = 'foreground is black/white \u2014 relative to step 0';
+  }
+  for (let target = 0; target < 18; target++) {
+    const delta = ((target - baseStep) % 18 + 18) % 18;
+    const cell = document.createElement('div');
+    cell.className = 'ops-cell' + (delta === 0 ? ' ops-nocmd' : '') + (target === baseStep ? ' ops-current' : '');
+    cell.style.background = grayCss(STEPS[target]);
+    cell.style.color = delta === 0 ? 'transparent' : textColorFor(STEPS[target]);
+    cell.style.cursor = 'pointer';
+    cell.textContent = CMD_ABBR[delta];
+    cell.title = 'step ' + target + ' (' + STEPS[target] + ', ' + HUE_NAMES[target] + '): ' +
+                 (COMMAND_TABLE[delta] || 'no-op') + ' (\u0394=' + delta + ')' +
+                 ' \u2014 left click: set as foreground, right click: set as background';
+    cell.addEventListener('click', function () { fgColor = STEPS[target]; updateSwatches(); });
+    cell.addEventListener('contextmenu', function (e) { e.preventDefault(); bgColor = STEPS[target]; updateSwatches(); });
+    strip.appendChild(cell);
+  }
+}
+
+/* ========================== reference tables (detailed, on demand) ====== */
+function buildReferenceTables() {
+  const pt = document.getElementById('paletteTable');
+  let rows = '<tr><th></th><th>Name</th><th>Gray value</th><th>Piet equivalent</th></tr>';
+  rows += '<tr><td class="swatch-cell"><div class="sw-box" style="background:' + grayCss(BLACK) + '"></div></td>' +
+          '<td>black</td><td>33</td><td>wall &mdash; pointer cannot enter</td></tr>';
+  rows += '<tr><td class="swatch-cell"><div class="sw-box" style="background:' + grayCss(WHITE) + '"></div></td>' +
+          '<td>white</td><td>255</td><td>free passage, no command</td></tr>';
+  rows += '<tr><td class="swatch-cell"><div class="sw-box" style="background:' + grayCss(HEADER) + '"></div></td>' +
+          '<td>header</td><td>0</td><td>free passage; also prints the file\'s own PGM header</td></tr>';
+  STEPS.forEach((v, i) => {
+    rows += '<tr><td class="swatch-cell"><div class="sw-box" style="background:' + grayCss(v) + '"></div></td>' +
+            '<td>step ' + i + '</td><td>' + v + '</td><td>' + HUE_NAMES[i] + '</td></tr>';
+  });
+  pt.innerHTML = rows;
+
+  const ct = document.getElementById('commandTable');
+  let crows = '<tr><th>&Delta;</th><th>Command</th><th>Stack effect</th></tr>';
+  COMMAND_TABLE.forEach((cmd, delta) => {
+    crows += '<tr><td class="delta-col">' + delta + '</td><td>' + (cmd || '<i>(none)</i>') + '</td><td>' + COMMAND_DESCRIPTIONS[delta] + '</td></tr>';
+  });
+  ct.innerHTML = crows;
+}
+function openReference() {
+  buildReferenceTables();
+  document.getElementById('refModal').classList.add('open');
+}
+document.getElementById('btnReference').addEventListener('click', openReference);
+document.getElementById('refClose').addEventListener('click', () => document.getElementById('refModal').classList.remove('open'));
+document.getElementById('refOk').addEventListener('click', () => document.getElementById('refModal').classList.remove('open'));
+
+/* ============================ PGM parse / export ======================= */
+function parsePGM(bytes) {
+  let pos = 0;
+  const isSpace = (b) => b === 32 || b === 9 || b === 13 || b === 10;
+  function skipWs() {
+    while (true) {
+      while (pos < bytes.length && isSpace(bytes[pos])) pos++;
+      if (pos < bytes.length && bytes[pos] === 35) { while (pos < bytes.length && bytes[pos] !== 10) pos++; }
+      else return;
+    }
+  }
+  function token() {
+    skipWs();
+    const start = pos;
+    while (pos < bytes.length && !isSpace(bytes[pos])) pos++;
+    let s = '';
+    for (let i = start; i < pos; i++) s += String.fromCharCode(bytes[i]);
+    return s;
+  }
+  const magic = token();
+  if (magic !== 'P2' && magic !== 'P5') throw new Error('Not a PGM file (magic=' + magic + ')');
+  const w = parseInt(token(), 10), h = parseInt(token(), 10), maxval = parseInt(token(), 10);
+  let px = [];
+  if (magic === 'P2') {
+    skipWs();
+    while (px.length < w * h) px.push(parseInt(token(), 10));
+  } else {
+    pos += 1;
+    px = Array.from(bytes.slice(pos, pos + w * h));
+  }
+  return { w, h, px };
+}
+
+/* Saved size: trim trailing white columns/rows on the right and bottom
+ * only. Top/left are never trimmed -- execution starts at (0,0). */
+function croppedSize() {
+  let cw = 1, ch = 1;
+  for (let y = 0; y < H; y++) {
+    for (let x = 0; x < W; x++) {
+      if (classify(pixels[idx(x, y)]) !== 'white') {
+        if (x + 1 > cw) cw = x + 1;
+        if (y + 1 > ch) ch = y + 1;
+      }
+    }
+  }
+  return { w: cw, h: ch };
+}
+function gridOf(w, h) {
+  const g = [];
+  for (let y = 0; y < h; y++) {
+    const row = [];
+    for (let x = 0; x < w; x++) row.push(pixels[idx(x, y)]);
+    g.push(row);
+  }
+  return g;
+}
+/* Run the full and trimmed versions side by side (bounded) and check
+ * they behave identically; trailing white can matter if the pointer
+ * ever slides into it. */
+function trimIsSafe(cw, ch) {
+  if (cw === W && ch === H) return true;
+  const inBuf = utf8Bytes(document.getElementById('stdinBox').value);
+  const hdr = 'P2\n';          // same header text for both: compare layout only
+  const STEP_CAP = 1000000, OUT_TARGET = 4096;
+  const run = function (w, h) {
+    const it = new Interpreter(w, h, gridOf(w, h), hdr, { inBuf: inBuf });
+    let n = 0;
+    while (!it.halted && n < STEP_CAP && it.output.length < OUT_TARGET) { it.step(); n++; }
+    return { out: it.output, halted: it.halted };
+  };
+  const a = run(W, H), b = run(cw, ch);
+  if (a.halted !== b.halted) return false;
+  const same = function (n) { for (let i = 0; i < n; i++) if (a.out[i] !== b.out[i]) return false; return true; };
+  if (a.halted) return a.out.length === b.out.length && same(a.out.length);
+  // neither halted: equivalent only if both produced the same output --
+  // either both reached the target amount, or exactly the same bytes.
+  // Anything less certain keeps the full canvas (never harmful).
+  if (a.out.length >= OUT_TARGET && b.out.length >= OUT_TARGET) return same(OUT_TARGET);
+  return a.out.length === b.out.length && same(a.out.length);
+}
+function saveDims() {
+  const c = croppedSize();
+  if (trimIsSafe(c.w, c.h)) return { w: c.w, h: c.h, note: (c.w !== W || c.h !== H) ? 'trimmed to ' + c.w + 'x' + c.h : '' };
+  return { w: W, h: H, note: 'kept full ' + W + 'x' + H + ' (trimming would change how the program runs)' };
+}
+function exportP2(d) {
+  const lines = ['P2', '# pgmpiet P2', d.w + ' ' + d.h, '255'];
+  for (let y = 0; y < d.h; y++) {
+    const row = [];
+    for (let x = 0; x < d.w; x++) row.push(pixels[idx(x, y)]);
+    lines.push(row.join(' '));
+  }
+  return lines.join('\n') + '\n';
+}
+function exportP5(d) {
+  const headerBytes = utf8Bytes('P5\n# pgmpiet P5\n' + d.w + ' ' + d.h + '\n255\n');
+  const buf = new Uint8Array(headerBytes.length + d.w * d.h);
+  buf.set(headerBytes, 0);
+  let o = headerBytes.length;
+  for (let y = 0; y < d.h; y++)
+    for (let x = 0; x < d.w; x++) buf[o++] = pixels[idx(x, y)];
+  return buf;
+}
+function saveAs(fmt) {
+  const d = saveDims();
+  lastSaveNote = d.note;
+  if (fmt === 'p5') saveFile('untitled.pgm.txt', exportP5(d).buffer.slice(0));
+  else saveFile('untitled.pgm.txt', exportP2(d));
+}
+let lastSaveNote = '';
+
+/* ================================ File I/O ============================ */
+document.getElementById('fileInput').addEventListener('change', function (e) {
+  const input = e.target;
+  const file = input.files[0];
+  if (!file) return;
+  // FileReader rather than file.arrayBuffer(): works in every browser
+  const reader = new FileReader();
+  reader.onload = function () {
+    try {
+      const parsed = parsePGM(new Uint8Array(reader.result));
+      W = parsed.w; H = parsed.h;
+      pixels = new Uint8Array(parsed.px);
+      editPtr = null;
+      document.getElementById('titleText').textContent = 'pgmpiet paint - ' + file.name;
+      resetInterpreter();
+      fitZoom();
+      render();
+      buildOpsStrip();
+      setStatus('Opened ' + file.name + ' (' + parsed.w + 'x' + parsed.h + ')');
+    } catch (err) {
+      setStatus('Could not open file: ' + err.message);
+    }
+    input.value = '';
+  };
+  reader.onerror = function () { setStatus('Could not read file.'); input.value = ''; };
+  reader.readAsArrayBuffer(file);
+});
+
+/* Save: the claude.ai downloads capability when published there; a
+ * plain browser download when the HTML file is opened on its own
+ * (e.g. saved locally and run in an older browser). */
+function saveFile(filename, data) {
+  const hostDownloads = (typeof claude !== 'undefined' && claude && typeof claude.use === 'function');
+  if (!hostDownloads) { plainDownload(filename.replace(/\.txt$/, ''), data); return; }
+  claude.use('downloads').then(function (downloads) {
+    if (!downloads) { plainDownload(filename.replace(/\.txt$/, ''), data); return; }
+    return downloads.save({ filename: filename, data: data }).then(function () {
+      showSaveInfo(filename);
+    }, function (err) {
+      setStatus('Save ' + (err && err.code === 'declined' ? 'cancelled.' : 'failed: ' + (err && err.message)));
+    });
+  }, function () { plainDownload(filename.replace(/\.txt$/, ''), data); });
+}
+function plainDownload(filename, data) {
+  const blob = new Blob([data], { type: 'application/octet-stream' });
+  if (window.navigator && window.navigator.msSaveBlob) {  // old IE / Edge
+    window.navigator.msSaveBlob(blob, filename);
+  } else {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+  }
+  setStatus('Saved ' + filename + (lastSaveNote ? ' \u2014 ' + lastSaveNote : ''));
+}
+function showSaveInfo(filename) {
+  const pgmName = filename.replace(/\.txt$/, '');
+  document.getElementById('saveInfoText').innerHTML =
+    'Saved as <b>' + filename + '</b>' + (lastSaveNote ? ' (' + lastSaveNote + ')' : '') + '.<br><br>' +
+    'Downloads only allow certain extensions, so the true <b>.pgm</b> ' +
+    'file is wrapped with a forced <b>.txt</b> suffix &mdash; the bytes ' +
+    'are exactly right either way. Just delete the <b>.txt</b> and ' +
+    'you\'re left with the real file:<br>' +
+    '<code>python3 pgmpiet.py ' + pgmName + '</code>';
+  document.getElementById('saveInfoModal').classList.add('open');
+}
+
+/* ================================ menus ================================ */
+document.querySelectorAll('.menu-item').forEach(item => {
+  item.addEventListener('click', (e) => {
+    const dd = item.querySelector('.menu-dropdown');
+    const wasOpen = dd.classList.contains('open');
+    document.querySelectorAll('.menu-dropdown').forEach(d => d.classList.remove('open'));
+    document.querySelectorAll('.menu-item').forEach(m => m.classList.remove('open'));
+    if (!wasOpen) { dd.classList.add('open'); item.classList.add('open'); }
+    e.stopPropagation();
+  });
+});
+document.addEventListener('click', () => {
+  document.querySelectorAll('.menu-dropdown').forEach(d => d.classList.remove('open'));
+  document.querySelectorAll('.menu-item').forEach(m => m.classList.remove('open'));
+});
+
+function handleMenuAction(action) {
+  if (action === 'new') openSizeModal('new');
+  else if (action === 'open') document.getElementById('fileInput').click();
+  else if (action === 'save-p2') saveAs('p2');
+  else if (action === 'save-p5') saveAs('p5');
+  else if (action === 'clear-white') { pixels.fill(WHITE); resetInterpreter(); render(); }
+  else if (action === 'clear-black') { pixels.fill(BLACK); resetInterpreter(); render(); }
+  else if (action === 'attrs') openSizeModal('resize');
+  else if (action === 'run-go') runToHalt();
+  else if (action === 'run-step') stepOnce();
+  else if (action === 'run-reset') resetInterpreter();
+  else if (action === 'reference') openReference();
+  else if (action === 'about') document.getElementById('aboutModal').classList.add('open');
+}
+document.querySelectorAll('.mi').forEach(mi => mi.addEventListener('click', () => handleMenuAction(mi.dataset.action)));
+document.getElementById('btnNew').addEventListener('click', () => openSizeModal('new'));
+document.getElementById('btnOpen').addEventListener('click', () => document.getElementById('fileInput').click());
+document.getElementById('btnSaveP2').addEventListener('click', () => saveAs('p2'));
+
+/* ============================== size modal ============================= */
+let sizeModalMode = 'new';
+function openSizeModal(mode) {
+  sizeModalMode = mode;
+  document.getElementById('sizeModalTitle').textContent = mode === 'new' ? 'New Image' : 'Attributes';
+  document.getElementById('sizeW').value = W;
+  document.getElementById('sizeH').value = H;
+  document.getElementById('sizeModal').classList.add('open');
+}
+document.getElementById('sizeCancel').addEventListener('click', () => document.getElementById('sizeModal').classList.remove('open'));
+document.getElementById('sizeOk').addEventListener('click', () => {
+  const w = Math.max(1, Math.min(500, parseInt(document.getElementById('sizeW').value, 10) || W));
+  const h = Math.max(1, Math.min(500, parseInt(document.getElementById('sizeH').value, 10) || H));
+  if (sizeModalMode === 'new') newImage(w, h);
+  else resizeImage(w, h);
+  document.getElementById('sizeModal').classList.remove('open');
+  setStatus((sizeModalMode === 'new' ? 'New image ' : 'Resized to ') + w + 'x' + h);
+});
+document.getElementById('aboutOk').addEventListener('click', () => document.getElementById('aboutModal').classList.remove('open'));
+document.getElementById('saveInfoOk').addEventListener('click', () => document.getElementById('saveInfoModal').classList.remove('open'));
+
+/* ================================= zoom ================================ */
+document.getElementById('zoomIn').addEventListener('click', () => setZoom(zoom + (zoom < 8 ? 1 : zoom < 24 ? 4 : 8)));
+document.getElementById('zoomOut').addEventListener('click', () => setZoom(zoom - (zoom <= 8 ? 1 : zoom <= 24 ? 4 : 8)));
+document.getElementById('zoomFit').addEventListener('click', () => { fitZoom(); render(); });
+
+/* ============================ interpreter panel ========================= */
+let interp = null;
+let isRunning = false;
+let runningHandle = null;
+
+function toGrid() {
+  const grid = [];
+  for (let y = 0; y < H; y++) grid.push(Array.from(pixels.slice(y*W, (y+1)*W)));
+  return grid;
+}
+function synthHeaderText() {
+  return 'P2\n# pgmpiet P2\n' + W + ' ' + H + '\n255\n';
+}
+function resetInterpreter() {
+  if (isRunning) { isRunning = false; if (runningHandle) cancelAnimationFrame(runningHandle); document.getElementById('btnRun').textContent = '▶ Run'; document.getElementById('btnStep').disabled = false; }
+  const stdinText = document.getElementById('stdinBox').value;
+  const inBuf = utf8Bytes(stdinText);
+  interp = new Interpreter(W, H, toGrid(), synthHeaderText(), { inBuf });
+  document.getElementById('outputBox').value = '';
+  updateRunPanel();
+  hideOpTooltip();
+  render();
+  setStatus('Interpreter reset.');
+}
+function stepOnce() {
+  if (isRunning) return; // ignore Step while a Run is in progress
+  if (!interp) resetInterpreter();
+  if (interp.halted) { setStatus('Already halted.'); return; }
+  interp.step();
+  flushOutput();
+  updateRunPanel();
+  render();
+  updateOpTooltip();
+}
+function runToHalt() {
+  if (!interp) resetInterpreter();
+  if (isRunning) { stopRunning(); return; }
+  if (interp.halted) { setStatus('Already halted.'); return; }
+  isRunning = true;
+  currentChunkSize = 25;
+  document.getElementById('btnRun').textContent = '⏸ Stop';
+  document.getElementById('btnStep').disabled = true;
+  runChunk();
+}
+function stopRunning() {
+  isRunning = false;
+  document.getElementById('btnRun').textContent = '▶ Run';
+  document.getElementById('btnStep').disabled = false;
+  if (interp) setStatus('Stopped after ' + interp.steps + ' steps.');
+}
+let currentChunkSize = 25;
+const MAX_CHUNK_SIZE = 50000;
+function runChunk() {
+  const SAFETY_BUDGET = 50000000;
+  let n = 0;
+  while (!interp.halted && n < currentChunkSize && interp.steps < SAFETY_BUDGET) { interp.step(); n++; }
+  flushOutput();
+  updateRunPanel();
+  render();
+  updateOpTooltip();
+  // ease in: start slow enough to actually see the pointer move on short
+  // programs, then ramp up so long-running ones don't crawl forever.
+  currentChunkSize = Math.min(MAX_CHUNK_SIZE, Math.ceil(currentChunkSize * 1.6));
+
+  if (interp.halted) {
+    stopRunning();
+    setStatus('Halted after ' + interp.steps + ' steps.');
+    return;
+  }
+  if (interp.steps >= SAFETY_BUDGET) {
+    stopRunning();
+    setStatus('Paused after ' + interp.steps + ' steps (safety limit) -- click Run to continue.');
+    return;
+  }
+  if (!isRunning) return; // user clicked Stop mid-chunk-schedule
+  runningHandle = requestAnimationFrame(runChunk);
+}
+function flushOutput() {
+  const box = document.getElementById('outputBox');
+  let s = '';
+  for (const b of interp.output) s += String.fromCharCode(b);
+  box.value = s;
+  box.scrollTop = box.scrollHeight;
+}
+function updateRunPanel() {
+  if (!interp) return;
+  document.getElementById('stStatus').textContent = interp.halted
+    ? (interp.deadOnArrival ? 'halted (dead on arrival)' : 'halted')
+    : 'running';
+  document.getElementById('stPos').textContent = interp.pos.join(', ');
+  document.getElementById('stDp').textContent = ['right','down','left','up'][interp.dp];
+  document.getElementById('stCc').textContent = interp.cc === 0 ? 'left' : 'right';
+  document.getElementById('stSteps').textContent = interp.steps;
+  document.getElementById('stackBox').textContent = '[' + interp.stack.join(', ') + ']';
+  buildOpsStrip();
+}
+
+/* ------------------------- current-step tooltip ------------------------ */
+function hideOpTooltip() {
+  document.getElementById('opTooltip').style.display = 'none';
+}
+function updateOpTooltip() {
+  const tip = document.getElementById('opTooltip');
+  if (!interp || !interp.lastOp) { hideOpTooltip(); return; }
+  tip.textContent = describeOp(interp.lastOp);
+  const [x, y] = interp.pos;
+  const rect = canvas.getBoundingClientRect();
+  const cellLeft = rect.left + x * zoom;
+  const cellTop = rect.top + y * zoom;
+  tip.style.display = 'block';
+  // measure, then place above the cell if there's room, else below
+  const tw = tip.offsetWidth, th = tip.offsetHeight;
+  let left = cellLeft + zoom / 2 - tw / 2;
+  left = Math.max(4, Math.min(window.innerWidth - tw - 4, left));
+  let top = cellTop - th - 6;
+  if (top < 4) top = cellTop + zoom + 6;
+  tip.style.left = left + 'px';
+  tip.style.top = top + 'px';
+}
+document.getElementById('btnRun').addEventListener('click', runToHalt);
+document.getElementById('btnStep').addEventListener('click', stepOnce);
+document.getElementById('btnReset').addEventListener('click', resetInterpreter);
+
+/* ================================ status bar ============================ */
+function setStatus(msg) { document.getElementById('statusText').textContent = msg; }
+
+/* ================================= init ================================= */
+buildPaletteGrid();
+updateSwatches();
+fitZoom();
+render();
+setStatus('Ready');
+</script>
+</body>
+</html>
