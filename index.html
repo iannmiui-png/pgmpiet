@@ -487,6 +487,9 @@ class Interpreter {
     this.halted = false;
     this.attempts = 0;
     this.steps = 0;
+    // exit codel depends only on (block, dp, cc): cache it, so each step
+    // is a lookup instead of a scan over the whole block
+    this.exitCache = new Map();
 
     const cls0 = classify(grid[0][0]);
     if (cls0 === 'black') {
@@ -597,7 +600,10 @@ class Interpreter {
     const bid = this.blockIdAt[y][x];
     const blockCoords = this.blocks[bid];
     const oldStep = this.classify(x, y);
-    const [ex, ey] = this.exitCodel(blockCoords, this.dp, this.cc);
+    const ekey = bid * 8 + this.dp * 2 + this.cc;
+    let exitPt = this.exitCache.get(ekey);
+    if (!exitPt) { exitPt = this.exitCodel(blockCoords, this.dp, this.cc); this.exitCache.set(ekey, exitPt); }
+    const ex = exitPt[0], ey = exitPt[1];
     const [dpx, dpy] = DP_VECTORS[this.dp];
     const nx = ex + dpx, ny = ey + dpy;
 
@@ -1149,34 +1155,51 @@ function gridOf(w, h) {
   }
   return g;
 }
-/* Run the full and trimmed versions side by side (bounded) and check
- * they behave identically; trailing white can matter if the pointer
- * ever slides into it. */
-function trimIsSafe(cw, ch) {
-  if (cw === W && ch === H) return true;
+/* Run the full and trimmed versions side by side and check they behave
+ * identically (trailing white matters if the pointer ever slides into
+ * it). Runs in short slices so the page never freezes, with an overall
+ * time limit; calls done(true | false | null), null = couldn't tell in
+ * time. Anything short of a confirmed match keeps the full canvas. */
+function checkTrimAsync(cw, ch, done) {
+  if (cw === W && ch === H) { done(true); return; }
   const inBuf = utf8Bytes(document.getElementById('stdinBox').value);
   const hdr = 'P2\n';          // same header text for both: compare layout only
-  const STEP_CAP = 1000000, OUT_TARGET = 4096;
-  const run = function (w, h) {
-    const it = new Interpreter(w, h, gridOf(w, h), hdr, { inBuf: inBuf });
-    let n = 0;
-    while (!it.halted && n < STEP_CAP && it.output.length < OUT_TARGET) { it.step(); n++; }
-    return { out: it.output, halted: it.halted };
+  const STEP_CAP = 1000000, OUT_TARGET = 4096, BUDGET_MS = 3000, SLICE_MS = 25;
+  const A = new Interpreter(W, H, gridOf(W, H), hdr, { inBuf: inBuf });
+  const B = new Interpreter(cw, ch, gridOf(cw, ch), hdr, { inBuf: inBuf });
+  let na = 0, nb = 0;
+  const t0 = Date.now();
+  const doneRunning = function (it, n) { return it.halted || n >= STEP_CAP || it.output.length >= OUT_TARGET; };
+  const verdict = function () {
+    if (A.halted !== B.halted) return false;
+    const same = function (n) { for (let i = 0; i < n; i++) if (A.output[i] !== B.output[i]) return false; return true; };
+    if (A.halted) return A.output.length === B.output.length && same(A.output.length);
+    if (A.output.length >= OUT_TARGET && B.output.length >= OUT_TARGET) return same(OUT_TARGET);
+    return A.output.length === B.output.length && same(A.output.length);
   };
-  const a = run(W, H), b = run(cw, ch);
-  if (a.halted !== b.halted) return false;
-  const same = function (n) { for (let i = 0; i < n; i++) if (a.out[i] !== b.out[i]) return false; return true; };
-  if (a.halted) return a.out.length === b.out.length && same(a.out.length);
-  // neither halted: equivalent only if both produced the same output --
-  // either both reached the target amount, or exactly the same bytes.
-  // Anything less certain keeps the full canvas (never harmful).
-  if (a.out.length >= OUT_TARGET && b.out.length >= OUT_TARGET) return same(OUT_TARGET);
-  return a.out.length === b.out.length && same(a.out.length);
+  const tick = function () {
+    const sliceStart = Date.now();
+    while (Date.now() - sliceStart < SLICE_MS) {
+      let moved = false;
+      for (let k = 0; k < 400; k++) {
+        if (!doneRunning(A, na)) { A.step(); na++; moved = true; }
+        if (!doneRunning(B, nb)) { B.step(); nb++; moved = true; }
+      }
+      if (!moved) break;
+    }
+    if (doneRunning(A, na) && doneRunning(B, nb)) { done(verdict()); return; }
+    if (Date.now() - t0 > BUDGET_MS) { done(null); return; }
+    setTimeout(tick, 0);
+  };
+  tick();
 }
-function saveDims() {
+/* Work out the dimensions to save; calls back with {w, h, note}. */
+function computeSaveDims(cb) {
   const c = croppedSize();
-  if (trimIsSafe(c.w, c.h)) return { w: c.w, h: c.h, note: (c.w !== W || c.h !== H) ? 'trimmed to ' + c.w + 'x' + c.h : '' };
-  return { w: W, h: H, note: 'kept full ' + W + 'x' + H + ' (trimming would change how the program runs)' };
+  checkTrimAsync(c.w, c.h, function (ok) {
+    if (ok === true) cb({ w: c.w, h: c.h });
+    else cb({ w: W, h: H });
+  });
 }
 function exportP2(d) {
   const lines = ['P2', '# pgmpiet P2', d.w + ' ' + d.h, '255'];
@@ -1196,13 +1219,17 @@ function exportP5(d) {
     for (let x = 0; x < d.w; x++) buf[o++] = pixels[idx(x, y)];
   return buf;
 }
+let saveInProgress = false;
 function saveAs(fmt) {
-  const d = saveDims();
-  lastSaveNote = d.note;
-  if (fmt === 'p5') saveFile('untitled.pgm.txt', exportP5(d).buffer.slice(0));
-  else saveFile('untitled.pgm.txt', exportP2(d));
+  if (saveInProgress) return;
+  saveInProgress = true;
+  setStatus('Saving\u2026');
+  computeSaveDims(function (d) {
+    saveInProgress = false;
+    if (fmt === 'p5') saveFile('untitled.pgm.txt', exportP5(d).buffer.slice(0));
+    else saveFile('untitled.pgm.txt', exportP2(d));
+  });
 }
-let lastSaveNote = '';
 
 /* ================================ File I/O ============================ */
 document.getElementById('fileInput').addEventListener('change', function (e) {
@@ -1260,12 +1287,12 @@ function plainDownload(filename, data) {
     document.body.removeChild(a);
     setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
   }
-  setStatus('Saved ' + filename + (lastSaveNote ? ' \u2014 ' + lastSaveNote : ''));
+  setStatus('Saved as ' + filename);
 }
 function showSaveInfo(filename) {
   const pgmName = filename.replace(/\.txt$/, '');
   document.getElementById('saveInfoText').innerHTML =
-    'Saved as <b>' + filename + '</b>' + (lastSaveNote ? ' (' + lastSaveNote + ')' : '') + '.<br><br>' +
+    'Saved as <b>' + filename + '</b>.<br><br>' +
     'Downloads only allow certain extensions, so the true <b>.pgm</b> ' +
     'file is wrapped with a forced <b>.txt</b> suffix &mdash; the bytes ' +
     'are exactly right either way. Just delete the <b>.txt</b> and ' +
