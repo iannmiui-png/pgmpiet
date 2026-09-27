@@ -257,11 +257,11 @@ class GridBuilder:
                 self.set(x_open, y, WHITE)
         # turn1: down -> right, r=3, at column x_open (free-entry + 6-cell chain)
         end_row = self._lay_chain_vertical(x_open, row_start, 3, base_colour)
-        # turn2 (right -> up) now needs 3 cells (free-entry+push+pointer),
-        # ending exactly at x_target, so it must START at x_target-2.
-        t2_start = x_target - 2
+        # turn2: right -> UP needs r=3 (right+3=up); chain is free-entry +
+        # chain_deltas(3) [6 cells], pointer lands at t2_start+6 = x_target.
+        t2_start = x_target - 6
         self._white_hrange(end_row, x_open + 1, t2_start - 1)
-        self._lay_chain_horizontal(t2_start, end_row, 1, +1, 0)
+        self._lay_chain_horizontal(t2_start, end_row, 3, +1, 0)
         # climb white from just below the approach cells up to just above turn2
         self._white_vrange(x_target, 3, end_row - 1)
 
