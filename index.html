@@ -751,8 +751,8 @@ function render() {
     ctx.stroke();
   }
   const ep = activePointer();
-  if (ep) drawPointer(ep.x, ep.y, ep.dp, ep.exec ? '#ff2020' : '#1040ff');
-  document.getElementById('dimsText').textContent = W + ' x ' + H;
+  if (ep) drawPointer(ep.x, ep.y, ep.dp, ep.exec ? '#ff2020' : '#1040ff', ep.cs);
+  document.getElementById('dimsText').textContent = W + ' x ' + H + (interp && interp.cs > 1 ? ' (codel ' + interp.cs + ')' : '');
 }
 function grayCss(v) { v = Math.max(0, Math.min(255, v)); return 'rgb(' + v + ',' + v + ',' + v + ')'; }
 
@@ -760,22 +760,24 @@ function grayCss(v) { v = Math.max(0, Math.min(255, v)); return 'rgb(' + v + ','
  * step, otherwise the design cp (last codel placed), otherwise the
  * interpreter's start position. */
 function activePointer() {
-  if (interp && (interp.steps > 0 || isRunning)) return { x: interp.pos[0], y: interp.pos[1], dp: interp.dp, exec: true };
-  if (editPtr) return { x: editPtr.x, y: editPtr.y, dp: editPtr.dp, exec: false };
-  if (interp) return { x: interp.pos[0], y: interp.pos[1], dp: interp.dp, exec: true };
+  const execPtr = function () { const c = interp.cs || 1; return { x: interp.pos[0] * c, y: interp.pos[1] * c, dp: interp.dp, exec: true, cs: c }; };
+  if (interp && (interp.steps > 0 || isRunning)) return execPtr();
+  if (editPtr) return { x: editPtr.x, y: editPtr.y, dp: editPtr.dp, exec: false, cs: 1 };
+  if (interp) return execPtr();
   return null;
 }
-function drawPointer(x, y, dp, color) {
+function drawPointer(x, y, dp, color, cs) {
+  const z = zoom * (cs || 1);   // one codel on screen
   ctx.save();
   ctx.strokeStyle = color;
   ctx.lineWidth = 2;
-  ctx.strokeRect(x * zoom + 1, y * zoom + 1, zoom - 2, zoom - 2);
-  const cx = x * zoom + zoom / 2, cy = y * zoom + zoom / 2;
+  ctx.strokeRect(x * zoom + 1, y * zoom + 1, z - 2, z - 2);
+  const cx = x * zoom + z / 2, cy = y * zoom + z / 2;
   const [dx, dy] = DP_VECTORS[dp];
   const [px, py] = [-dy, dx];
-  const len = Math.max(4, zoom * 0.32);
+  const len = Math.max(4, z * 0.32);
   const backLen = len * 0.7;
-  const baseW = Math.max(3, zoom * 0.22);
+  const baseW = Math.max(3, z * 0.22);
   ctx.fillStyle = color;
   ctx.beginPath();
   ctx.moveTo(cx + dx * len, cy + dy * len);
@@ -1047,7 +1049,8 @@ function buildOpsStrip() {
   strip.innerHTML = '';
   const arrows = ['\u2192','\u2193','\u2190','\u2191'];
   if (ref.source === 'cp') {
-    const n = blockSizeAt(ref.ap.x, ref.ap.y);
+    const csz = ref.ap.cs || 1;
+    const n = Math.round(blockSizeAt(ref.ap.x, ref.ap.y) / (csz * csz));
     info.textContent = 'cp at ' + ref.ap.x + ',' + ref.ap.y + ' ' + arrows[ref.ap.dp] +
                        ' \u00b7 block ' + n + ' (psh pushes ' + n + ')';
   } else if (ref.source === 'fg-cp-blank') {
@@ -1175,8 +1178,8 @@ function checkTrimAsync(cw, ch, done) {
   const inBuf = utf8Bytes(document.getElementById('stdinBox').value);
   const hdr = 'P2\n';          // same header text for both: compare layout only
   const STEP_CAP = 1000000, OUT_TARGET = 4096, BUDGET_MS = 3000, SLICE_MS = 25;
-  const A = new Interpreter(W, H, gridOf(W, H), hdr, { inBuf: inBuf });
-  const B = new Interpreter(cw, ch, gridOf(cw, ch), hdr, { inBuf: inBuf });
+  const A = makeInterpreter(W, H, inBuf);
+  const B = makeInterpreter(cw, ch, inBuf);
   let na = 0, nb = 0;
   const t0 = Date.now();
   const doneRunning = function (it, n) { return it.halted || n >= STEP_CAP || it.output.length >= OUT_TARGET; };
@@ -1377,6 +1380,37 @@ let interp = null;
 let isRunning = false;
 let runningHandle = null;
 
+function gcd(a, b) { while (b) { const t = a % b; a = b; b = t; } return a; }
+/* Largest N such that the region is aligned to an N x N grid of uniform
+ * blocks: gcd of every same-colour run length (as pgmpiet.py does). */
+function detectCodelSize(w, h) {
+  let g = 0;
+  for (let y = 0; y < h; y++) {
+    let run = 1;
+    for (let x = 1; x < w; x++) {
+      if (pixels[idx(x, y)] === pixels[idx(x - 1, y)]) run++; else { g = gcd(g, run); run = 1; if (g === 1) return 1; }
+    }
+    g = gcd(g, run);
+  }
+  for (let x = 0; x < w; x++) {
+    let run = 1;
+    for (let y = 1; y < h; y++) {
+      if (pixels[idx(x, y)] === pixels[idx(x, y - 1)]) run++; else { g = gcd(g, run); run = 1; if (g === 1) return 1; }
+    }
+    g = gcd(g, run);
+  }
+  return g > 0 ? g : 1;
+}
+/* An interpreter over the top-left w x h region, running on codels. */
+function makeInterpreter(w, h, inBuf) {
+  const cs = detectCodelSize(w, h);
+  const cw = Math.floor(w / cs), ch = Math.floor(h / cs);
+  const g = [];
+  for (let y = 0; y < ch; y++) { const r = []; for (let x = 0; x < cw; x++) r.push(pixels[idx(x * cs, y * cs)]); g.push(r); }
+  const it = new Interpreter(cw, ch, g, synthHeaderText(), { inBuf: inBuf });
+  it.cs = cs;
+  return it;
+}
 function toGrid() {
   const grid = [];
   for (let y = 0; y < H; y++) grid.push(Array.from(pixels.slice(y*W, (y+1)*W)));
@@ -1389,7 +1423,7 @@ function resetInterpreter() {
   if (isRunning) { isRunning = false; if (runningHandle) cancelAnimationFrame(runningHandle); document.getElementById('btnRun').textContent = '▶ Run'; document.getElementById('btnStep').disabled = false; }
   const stdinText = document.getElementById('stdinBox').value;
   const inBuf = utf8Bytes(stdinText);
-  interp = new Interpreter(W, H, toGrid(), synthHeaderText(), { inBuf });
+  interp = makeInterpreter(W, H, inBuf);
   document.getElementById('outputBox').value = '';
   updateRunPanel();
   hideOpTooltip();
@@ -1487,17 +1521,18 @@ function updateOpTooltip() {
   const tip = document.getElementById('opTooltip');
   if (!interp || !interp.lastOp) { hideOpTooltip(); return; }
   tip.textContent = describeOp(interp.lastOp);
-  const [x, y] = interp.pos;
+  const cs = interp.cs || 1, z = zoom * cs;
+  const x = interp.pos[0] * cs, y = interp.pos[1] * cs;
   const rect = canvas.getBoundingClientRect();
   const cellLeft = rect.left + x * zoom;
   const cellTop = rect.top + y * zoom;
   tip.style.display = 'block';
   // measure, then place above the cell if there's room, else below
   const tw = tip.offsetWidth, th = tip.offsetHeight;
-  let left = cellLeft + zoom / 2 - tw / 2;
+  let left = cellLeft + z / 2 - tw / 2;
   left = Math.max(4, Math.min(window.innerWidth - tw - 4, left));
   let top = cellTop - th - 6;
-  if (top < 4) top = cellTop + zoom + 6;
+  if (top < 4) top = cellTop + z + 6;
   tip.style.left = left + 'px';
   tip.style.top = top + 'px';
 }
@@ -1509,6 +1544,11 @@ document.getElementById('btnReset').addEventListener('click', resetInterpreter);
 function setStatus(msg) { document.getElementById('statusText').textContent = msg; }
 
 /* ================================= init ================================= */
+document.getElementById('stdinBox').addEventListener('input', function () {
+  if (interp && (interp.steps > 0 || isRunning)) { resetInterpreter(); setStatus('Input changed \u2014 interpreter reset.'); }
+  else syncStdin();
+});
+
 buildPaletteGrid();
 updateSwatches();
 fitZoom();
