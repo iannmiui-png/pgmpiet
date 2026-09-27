@@ -330,16 +330,17 @@
       <h4 style="margin:0 0 4px;">Palette</h4>
       <div class="note" style="margin-bottom:6px;">
         Moving from one colour block to the next executes a command
-        based on <b>&Delta; = (new step &minus; old step) mod 18</b> &mdash;
+        based on the <b>hue change</b> (6-step cycle) and the <b>lightness
+        change</b> (3-step cycle, light &rarr; normal &rarr; dark &rarr; light), exactly as in Piet &mdash;
         the command depends on the difference between steps, not on
         either colour alone.
       </div>
       <table class="ref-table" id="paletteTable"></table>
 
-      <h4 style="margin:14px 0 4px;">Commands (by &Delta;)</h4>
+      <h4 style="margin:14px 0 4px;">Commands (by hue change &times; lightness change)</h4>
       <div class="note" style="margin-bottom:6px;">
         The command executed when exiting a block of size <i>N</i> and
-        entering the next, for each possible &Delta;.
+        entering the next, for each hue change and lightness change.
       </div>
       <table class="ref-table" id="commandTable"></table>
 
@@ -435,6 +436,11 @@ const COMMAND_DESCRIPTIONS = [
   'pops a value; prints it as a decimal number',
   'pops a value; prints it as a single byte/character'
 ];
+/* Piet's rule: step = hue*3 + lightness; the command is chosen by
+ * (hue change mod 6, lightness change mod 3) -- two independent cycles. */
+function hueChange(a, b) { return ((Math.floor(b / 3) - Math.floor(a / 3)) % 6 + 6) % 6; }
+function lightChange(a, b) { return ((b % 3 - a % 3) % 3 + 3) % 3; }
+function commandIndex(a, b) { return hueChange(a, b) * 3 + lightChange(a, b); }
 const DP_VECTORS = [[1,0],[0,1],[-1,0],[0,-1]];
 function rotateCw(dp, n) { return ((dp + n) % 4 + 4) % 4; }
 function toggleCc(cc, n) { return (n % 2 === 0) ? cc : 1 - cc; }
@@ -625,7 +631,7 @@ class Interpreter {
     }
 
     const newStep = cls;
-    const delta = ((newStep - oldStep) % 18 + 18) % 18;
+    const delta = commandIndex(oldStep, newStep);
     const cmd = COMMAND_TABLE[delta];
     const beforeStack = this.stack.slice();
     this.execute(cmd, blockCoords.length);
@@ -674,7 +680,7 @@ function describeOp(op) {
   if (!op) return '';
   const { cmd, before, after, blockSize } = op;
   const fmt = (arr) => '[' + arr.join(', ') + ']';
-  if (cmd === null) return 'no-op (Δ=0)';
+  if (cmd === null) return 'no-op (same colour)';
   switch (cmd) {
     case 'push': return 'push ' + blockSize + '  (block size)';
     case 'pop': return before.length ? 'pop  (removed ' + before[before.length-1] + ')' : 'pop  (stack empty, no-op)';
@@ -1051,16 +1057,19 @@ function buildOpsStrip() {
   } else {
     info.textContent = 'foreground is black/white \u2014 relative to step 0';
   }
-  for (let target = 0; target < 18; target++) {
-    const delta = ((target - baseStep) % 18 + 18) % 18;
+  // Piet's own layout: 6 hue columns x 3 lightness rows (light/normal/dark)
+  for (let light = 0; light < 3; light++) for (let hue = 0; hue < 6; hue++) {
+    const target = hue * 3 + light;
+    const dh = hueChange(baseStep, target), dl = lightChange(baseStep, target);
+    const delta = dh * 3 + dl;
     const cell = document.createElement('div');
     cell.className = 'ops-cell' + (delta === 0 ? ' ops-nocmd' : '') + (target === baseStep ? ' ops-current' : '');
     cell.style.background = grayCss(STEPS[target]);
     cell.style.color = delta === 0 ? 'transparent' : textColorFor(STEPS[target]);
     cell.style.cursor = 'pointer';
     cell.textContent = CMD_ABBR[delta];
-    cell.title = 'step ' + target + ' (' + STEPS[target] + ', ' + HUE_NAMES[target] + '): ' +
-                 (COMMAND_TABLE[delta] || 'no-op') + ' (\u0394=' + delta + ')' +
+    cell.title = HUE_NAMES[target] + ' (' + STEPS[target] + '): ' + (COMMAND_TABLE[delta] || 'no-op') +
+                 ' (hue +' + dh + ', lightness +' + dl + ')' +
                  ' \u2014 left click: set as foreground, right click: set as background';
     cell.addEventListener('click', function () { fgColor = STEPS[target]; updateSwatches(); });
     cell.addEventListener('contextmenu', function (e) { e.preventDefault(); bgColor = STEPS[target]; updateSwatches(); });
@@ -1085,9 +1094,10 @@ function buildReferenceTables() {
   pt.innerHTML = rows;
 
   const ct = document.getElementById('commandTable');
-  let crows = '<tr><th>&Delta;</th><th>Command</th><th>Stack effect</th></tr>';
+  let crows = '<tr><th>Hue</th><th>Lightness</th><th>Command</th><th>Stack effect</th></tr>';
   COMMAND_TABLE.forEach((cmd, delta) => {
-    crows += '<tr><td class="delta-col">' + delta + '</td><td>' + (cmd || '<i>(none)</i>') + '</td><td>' + COMMAND_DESCRIPTIONS[delta] + '</td></tr>';
+    crows += '<tr><td class="delta-col">+' + Math.floor(delta / 3) + '</td><td class="delta-col">+' + (delta % 3) + '</td><td>' +
+             (cmd || '<i>(none)</i>') + '</td><td>' + COMMAND_DESCRIPTIONS[delta] + '</td></tr>';
   });
   ct.innerHTML = crows;
 }

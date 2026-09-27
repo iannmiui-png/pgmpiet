@@ -20,9 +20,10 @@ Canonical palette (default; override with --black/--white/--header/--palette):
     212, 219, 226, 233, 240, 247
         -> the 18 "coloured" steps, in canonical Piet hue-major
            order: light/normal/dark red, yellow, green, cyan, blue,
-           magenta. Moving from step a to step b executes the same
-           command as classic Piet's colour table at offset
-           (b - a) mod 18.
+           magenta. Step s has hue s // 3 and lightness s % 3.
+           Moving from step a to step b executes exactly what Piet
+           executes: the command for (hue change mod 6, lightness
+           change mod 3), looked up as hue_change * 3 + lightness_change.
 
 Usage:
     python3 pgmpiet.py program.pgm
@@ -41,7 +42,7 @@ DEFAULT_BLACK = 33
 DEFAULT_WHITE = 255
 DEFAULT_HEADER = 0
 
-# command executed for (new_step - old_step) mod 18, in classic Piet order
+# Piet's command table, indexed by hue_change * 3 + lightness_change
 COMMAND_TABLE = [
     None,          # 0  no-op (never triggered between two distinct blocks)
     'push', 'pop',
@@ -172,6 +173,14 @@ class Palette:
 
 
 # ------------------------------------------------------------- block map --
+
+def command_index(old_step, new_step):
+    """Piet's rule: step = hue*3 + lightness, and the command is chosen by
+    (hue change mod 6, lightness change mod 3) -- two independent cycles."""
+    dh = (new_step // 3 - old_step // 3) % 6
+    dl = (new_step % 3 - old_step % 3) % 3
+    return dh * 3 + dl
+
 
 def label_blocks(width, height, grid, palette):
     """4-connected flood fill over coloured (non black/white) codels.
@@ -407,7 +416,7 @@ class Interpreter:
 
             # entering a new coloured block: execute the command
             new_step = cls
-            delta = (new_step - old_step) % 18
+            delta = command_index(old_step, new_step)
             cmd = COMMAND_TABLE[delta]
             if self.trace:
                 sys.stderr.write(

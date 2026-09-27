@@ -33,7 +33,24 @@ CMD = {'push':1,'pop':2,'add':3,'subtract':4,'multiply':5,'divide':6,'mod':7,
        'in_number':14,'in_char':15,'out_number':16,'out_char':17}
 
 def col(step):
-    return STEPS[step % 18]
+    return STEPS[step]
+
+
+# Piet colour arithmetic. A step is hue*3 + lightness; command index c is
+# (hue change)*3 + (lightness change), and each part wraps in its own
+# cycle (hue mod 6, lightness mod 3) -- NOT a single mod-18 cycle.
+def next_step(step, c):
+    """The colour you must move to from `step` to execute command `c`."""
+    hue = (step // 3 + c // 3) % 6
+    light = (step % 3 + c % 3) % 3
+    return hue * 3 + light
+
+
+def prev_step(step, c):
+    """The colour you must come FROM so that entering `step` executes `c`."""
+    hue = (step // 3 - c // 3) % 6
+    light = (step % 3 - c % 3) % 3
+    return hue * 3 + light
 
 def chain_deltas(r):
     """push_literal(r) + pointer, as a list of CMD deltas."""
@@ -56,7 +73,7 @@ class Compiler:
         self.cur = 0
 
     def emit(self, delta):
-        self.cur = (self.cur + delta) % 18
+        self.cur = next_step(self.cur, delta)
         self.row.append(self.cur)
         return len(self.row) - 1
 
@@ -174,8 +191,8 @@ class GridBuilder:
         # itself (entered via pointer from row1). Both row1/row2 values
         # are derived BACKWARD from the marker's already-fixed colour.
         for x, marker_step in approach_targets.items():
-            cell2 = (marker_step - CMD['pointer']) % 18
-            cell1 = (cell2 - CMD['push']) % 18
+            cell2 = prev_step(marker_step, CMD['pointer'])
+            cell1 = prev_step(cell2, CMD['push'])
             self.set(x, 2, col(cell1))
             self.set(x, 1, col(cell2))
 
@@ -198,7 +215,7 @@ class GridBuilder:
         self.set(x, y0, col(cur))
         y = y0 + 1
         for d in chain_deltas(r):
-            cur = (cur + d) % 18
+            cur = next_step(cur, d)
             self.set(x, y, col(cur))
             y += 1
         return y - 1
@@ -210,7 +227,7 @@ class GridBuilder:
         self.set(x0, y, col(cur))
         x = x0 + direction
         for d in chain_deltas(r):
-            cur = (cur + d) % 18
+            cur = next_step(cur, d)
             self.set(x, y, col(cur))
             x += direction
         return x - direction

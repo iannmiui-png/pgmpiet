@@ -29,7 +29,15 @@ CMD = {'push':1,'pop':2,'add':3,'subtract':4,'multiply':5,'divide':6,'mod':7,
        'not':8,'greater':9,'pointer':10,'switch':11,'duplicate':12,'roll':13,
        'in_number':14,'in_char':15,'out_number':16,'out_char':17}
 
-def col(step): return STEPS[step % 18]
+def col(step): return STEPS[step]
+
+# Piet colour arithmetic: step = hue*3 + lightness; command index c is
+# (hue change)*3 + (lightness change), each wrapping in its own cycle
+# (hue mod 6, lightness mod 3).
+def next_step(step, c):
+    return ((step // 3 + c // 3) % 6) * 3 + (step % 3 + c % 3) % 3
+def prev_step(step, c):
+    return ((step // 3 - c // 3) % 6) * 3 + (step % 3 - c % 3) % 3
 def chain_deltas(r):
     d = [CMD['push']]
     for b in bin(r)[3:]:
@@ -43,7 +51,7 @@ class Compiler:
         self.T, self.row, self.cur = tape_size, [0], 0
 
     def emit(self, delta):
-        self.cur = (self.cur + delta) % 18
+        self.cur = next_step(self.cur, delta)
         self.row.append(self.cur)
         return len(self.row) - 1
 
@@ -115,8 +123,8 @@ class GridBuilder:
         for lp in self.loops:
             self._skip_forward(lp); self._loop_back(lp)
         for x, m in targets.items():
-            c2 = (m - CMD['pointer']) % 18
-            c1 = (c2 - CMD['push']) % 18
+            c2 = prev_step(m, CMD['pointer'])
+            c1 = prev_step(c2, CMD['push'])
             self.set(x, 2, col(c1)); self.set(x, 1, col(c2))
         for y in (1, 2):
             for x in range(self.width):
@@ -127,14 +135,14 @@ class GridBuilder:
         cur, y = base, y0
         self.set(x, y, col(cur)); y += 1
         for d in chain_deltas(r):
-            cur = (cur + d) % 18; self.set(x, y, col(cur)); y += 1
+            cur = next_step(cur, d); self.set(x, y, col(cur)); y += 1
         return y - 1
 
     def _lay_h(self, x0, y, r, dirn, base):
         cur, x = base, x0
         self.set(x, y, col(cur)); x += dirn
         for d in chain_deltas(r):
-            cur = (cur + d) % 18; self.set(x, y, col(cur)); x += dirn
+            cur = next_step(cur, d); self.set(x, y, col(cur)); x += dirn
         return x - dirn
 
     def _wv(self, x, y0, y1):
