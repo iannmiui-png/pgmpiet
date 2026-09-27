@@ -1396,9 +1396,18 @@ function resetInterpreter() {
   render();
   setStatus('Interpreter reset.');
 }
+/* A program that hasn't taken a step yet always uses what's currently in
+ * the stdin box (it used to keep whatever was there at the last reset). */
+function syncStdin() {
+  if (interp && interp.steps === 0 && !isRunning) {
+    interp.inBuf = utf8Bytes(document.getElementById('stdinBox').value);
+    interp.inPos = 0;
+  }
+}
 function stepOnce() {
   if (isRunning) return; // ignore Step while a Run is in progress
   if (!interp) resetInterpreter();
+  syncStdin();
   if (interp.halted) { setStatus('Already halted.'); return; }
   interp.step();
   flushOutput();
@@ -1408,6 +1417,7 @@ function stepOnce() {
 }
 function runToHalt() {
   if (!interp) resetInterpreter();
+  syncStdin();
   if (isRunning) { stopRunning(); return; }
   if (interp.halted) { setStatus('Already halted.'); return; }
   isRunning = true;
