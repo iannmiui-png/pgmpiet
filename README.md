@@ -1,4 +1,5 @@
-<img width="189" height="26" alt="xkcd" src="https://github.com/user-attachments/assets/40430a3c-b388-426e-9b2c-c1b37997d724" />
+<img width="9910" height="450" alt="99bottles" src="https://github.com/user-attachments/assets/236b2170-3798-4641-843c-5246d8a6f311" />
+
 <br>https://esolangs.org/wiki/pgmpiet<br>
 
 # interpreter for pgmpiet
