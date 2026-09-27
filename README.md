@@ -22,3 +22,16 @@ usage:
 ```
 python kbfi_pgmpiet.py
 ```
+
+# piet2pgmpiet
+converts .ppm piet programs to pgmpiet .pgm
+
+usage:
+pietppm to pgmpiet P5 (binary pgm)
+```
+python3 piet2pgmpiet.py program.ppm program.pgm
+```
+pietppm to pgmpiet P2 (text pgm)
+```
+python3 piet2pgmpiet.py program.ppm program.pgm --p2
+```
