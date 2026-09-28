@@ -76,23 +76,38 @@ class Compiler:
     def dot(self): self.emit(CMD['duplicate']); self.emit(CMD['out_char'])
     def comma(self): self.emit(CMD['pop']); self.emit(CMD['in_char'])
 
+    def move(self, net):
+        rv = net % self.T
+        if rv == 0: return
+        self.push_literal(self.T); self.push_literal(rv); self.emit(CMD['roll'])
+    def addN(self, net):
+        if net > 0: self.push_literal(net); self.emit(CMD['add'])
+        elif net < 0: self.push_literal(-net); self.emit(CMD['subtract'])
     def compile(self, bf):
         self.init_tape()
         open_stack, self.loops, depth, self.max_depth = [], [], 0, 0
-        for c in bf:
-            if c == '>': self.gt()
-            elif c == '<': self.lt()
-            elif c == '+': self.plus()
-            elif c == '-': self.minus()
-            elif c == '.': self.dot()
-            elif c == ',': self.comma()
+        i, n = 0, len(bf)
+        while i < n:
+            c = bf[i]
+            if c in '<>':
+                net = 0
+                while i < n and bf[i] in '<>':
+                    net += 1 if bf[i] == '>' else -1; i += 1
+                self.move(net)
+            elif c in '+-':
+                net = 0
+                while i < n and bf[i] in '+-':
+                    net += 1 if bf[i] == '+' else -1; i += 1
+                self.addN(net)
+            elif c == '.': self.dot(); i += 1
+            elif c == ',': self.comma(); i += 1
             elif c == '[':
                 depth += 1; self.max_depth = max(self.max_depth, depth)
                 self.emit(CMD['duplicate']); self.emit(CMD['not'])
                 x_ptr = self.emit(CMD['pointer'])
                 self.row.append('WHITE'); self.cur = 0
                 x_body = self.emit_free()
-                open_stack.append({'x_open_ptr': x_ptr, 'x_body': x_body, 'depth': depth})
+                open_stack.append({'x_open_ptr': x_ptr, 'x_body': x_body, 'depth': depth}); i += 1
             elif c == ']':
                 info = open_stack.pop()
                 self.emit(CMD['duplicate']); self.emit(CMD['not']); self.emit(CMD['not'])
@@ -100,7 +115,8 @@ class Compiler:
                 self.row.append('WHITE'); self.cur = 0
                 x_after = self.emit_free()
                 info['x_close_ptr'], info['x_after'] = x_ptr2, x_after
-                self.loops.append(info); depth -= 1
+                self.loops.append(info); depth -= 1; i += 1
+            else: i += 1
         return self.row, self.loops
 
 
@@ -159,9 +175,11 @@ class GridBuilder:
         for y in range(3, rs):
             if (x_open, y) not in self.cells: self.set(x_open, y, WHITE)
         end = self._lay_v(x_open, rs, 3, base)
-        t2 = x_t - 2
+        # turn2: right -> UP needs r=3 (right+3=up); chain free-entry +
+        # chain_deltas(3) [6 cells] so pointer lands at t2+6 = x_t.
+        t2 = x_t - 6
         self._wh(end, x_open + 1, t2 - 1)
-        self._lay_h(t2, end, 1, +1, 0)
+        self._lay_h(t2, end, 3, +1, 0)
         self._wv(x_t, 3, end - 1)
 
     def _loop_back(self, lp):
