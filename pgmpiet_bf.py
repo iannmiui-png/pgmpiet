@@ -103,9 +103,11 @@ class Compiler:
 
     def plus(self):
         self.push_literal(1); self.emit(CMD['add'])
+        self.push_literal(256); self.emit(CMD['mod'])
 
     def minus(self):
         self.push_literal(1); self.emit(CMD['subtract'])
+        self.push_literal(256); self.emit(CMD['mod'])
 
     def dot(self):
         self.emit(CMD['duplicate']); self.emit(CMD['out_char'])
